@@ -1,0 +1,21 @@
+# HBuilderX 编译输出目录 (千万别上传这个)
+unpackage/
+dist/
+
+# HBuilderX 编辑器配置 (个人配置，不需要同步)
+.hbuilderx/
+
+# 操作系统生成的垃圾文件
+.DS_Store
+Thumbs.db
+
+# Node.js 依赖 (如果有用到)
+node_modules/
+
+# Python 缓存 (因为你用了 etl.py)
+__pycache__/
+*.pyc
+
+# 你的 Excel 源文件 (建议上传，作为数据源)
+# 但如果你不想公开原始数据，可以把下面这行取消注释
+# raw_data/

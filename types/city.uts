@@ -1,0 +1,59 @@
+// 文件: /types/city.uts
+
+export interface RadarData {
+  cost: number
+  medical: number
+  transport: number
+  climate: number
+  fun: number
+}
+
+export interface CityDetail {
+  guru_comment: string
+  climate_info: string
+  cons: string
+  medical_desc: string
+  transport_desc: string
+}
+
+export interface CityLocation {
+  lat: number
+  lng: number
+}
+
+export interface CityItem {
+  id: string
+  city: string
+  district: string
+  title: string
+  
+  // ✅ 核心字段：详情页展示用的文字 (例如 "三甲医院")
+  medical: string
+  transport: string
+  
+  cover_image: string
+  is_verified: boolean
+  
+  // ✅ 核心字段：列表页判断绿标用的开关 (true/false)
+  has_hospital_class_a: boolean 
+  
+  price_rent: number
+  price_buy: string
+  tags: string[]
+  detail: CityDetail
+  radar_data: RadarData
+  location: CityLocation
+}
+
+export interface CityMeta {
+  generated_at: string
+  source: string
+}
+
+export interface CityData {
+  version: number
+  update_date: string
+  total: number
+  items: CityItem[]
+  meta?: CityMeta
+}

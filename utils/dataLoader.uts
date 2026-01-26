@@ -1,0 +1,128 @@
+// 文件路径: /utils/dataLoader.uts
+import { CityData } from '../types/city'
+
+// 常量定义
+const LOCAL_DATA_PATH = '/static/data/data.json'
+const CDN_DATA_URL = 'https://cdn.your-site.com/data.json'
+const CACHE_KEY = 'cached_city_data'
+const VERSION_KEY = 'data_version'
+const USE_CDN = false
+
+// ✅ 新增：开发模式开关 (解决痛点核心)
+// true  = 开发模式：无视版本号，强制每次读取最新数据 (修改数据后不用改version也能生效)
+// false = 生产模式：开启缓存策略 (版本号一致时直接用缓存，性能更好)
+const IS_DEV = true 
+
+// utils/dataLoader.uts
+
+export async function loadCityData(): Promise<CityData> {
+  try {
+    const cachedData = getCachedData()
+    // 🔪 修改这里：加上时间戳参数 ?t=xxx
+        // 这样浏览器会认为每次都是请求一个全新的文件，绝对不会读缓存！
+        const timeStamp = Date.now()
+        const originalUrl = (USE_CDN ? CDN_DATA_URL : LOCAL_DATA_PATH) as string
+        const dataUrl = `${originalUrl}?t=${timeStamp}`
+        
+        console.log('📡 [1] 强制请求新地址:', dataUrl) // 你会看到类似 /data.json?t=170123456789
+    
+        const freshData = await fetchData(dataUrl)
+
+    console.log('✅ [2] 新文件读取成功，版本号:', freshData.version) // 🔍 检查点 2
+
+    // ... (你的版本判断逻辑，略) ...
+    // 如果走到这里，说明新数据没问题
+    
+    if (!IS_DEV && cachedData != null && cachedData.version == freshData.version) {
+       console.log('📦 使用缓存 (版本一致)')
+       return cachedData
+    }
+    
+    console.log('🔄 更新缓存为新版本')
+    saveToCache(freshData)
+    return freshData
+
+  } catch (error) {
+    // 🚨🚨🚨 这里是案发现场 🚨🚨🚨
+    console.error('❌❌❌ [严重] 新数据读取失败！！！原因如下:')
+    console.error(error) 
+    console.error('----------------------------------------')
+
+    const cachedData = getCachedData()
+    if (cachedData != null) {
+      console.log('⚠️ [兜底] 因为读取失败，系统被迫使用了【旧缓存】')
+      console.log('⚠️ [兜底] 旧缓存版本:', cachedData.version)
+      return cachedData
+    }
+    throw new Error('无法加载数据')
+  }
+}
+
+async function fetchData(url: string): Promise<CityData> {
+  // ✅ 修复点：在 Promise 后显式加上 <CityData>
+  // 告诉编译器：这个 Promise 最终一定会 resolve 一个 CityData 类型的数据
+  return new Promise<CityData>((resolve, reject) => {
+    uni.request({
+      url: url,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode == 200) {
+            try {
+                // 1. 转 JSON 字符串
+                const jsonStr = JSON.stringify(res.data)
+                
+                // 2. 解析并断言
+                // 注意：这里 data 可能是 null，所以定义为 CityData | null
+                const data = JSON.parse<CityData>(jsonStr) as CityData | null
+                
+                // 3. 非空检查
+                if (data != null) {
+                    // ✅ 因为上面做了非空检查，这里 data 被智能转换为 CityData
+                    // 正好匹配 Promise<CityData> 的要求
+                    resolve(data)
+                } else {
+                    reject("数据解析为空")
+                }
+            } catch (e) {
+                reject(`解析异常: ${e}`)
+            }
+        } else {
+            reject(`请求失败: ${res.statusCode}`)
+        }
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+function getCachedData(): CityData | null {
+  try {
+    const val = uni.getStorageSync(CACHE_KEY)
+    if (val != null) {
+        const jsonStr = val as string
+        if (jsonStr != "") {
+             return JSON.parse(jsonStr) as CityData
+        }
+    }
+    return null
+  } catch (error) {
+    return null
+  }
+}
+
+function saveToCache(data: CityData): void {
+  try {
+    const jsonStr = JSON.stringify(data)
+    uni.setStorageSync(CACHE_KEY, jsonStr)
+  } catch (error) {
+    console.error('缓存保存失败:', error)
+  }
+}
+
+export function clearCache(): void {
+  try {
+    uni.removeStorageSync(CACHE_KEY)
+    uni.removeStorageSync(VERSION_KEY)
+    console.log('🗑️ 缓存已手动清除')
+  } catch (error) { }
+}

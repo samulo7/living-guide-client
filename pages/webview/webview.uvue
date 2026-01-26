@@ -1,0 +1,43 @@
+<template>
+  <view class="container">
+    <web-view class="webview" :src="targetUrl"></web-view>
+  </view>
+</template>
+
+<script lang="uts">
+export default {
+  data() {
+    return {
+      // 显式声明为 string
+      targetUrl: '' as string
+    }
+  },
+  
+  onLoad(options) {
+    const urlParam = options['url']
+    
+    if (urlParam != null) {
+      // 1. 强制转为字符串 (解决输入类型的警告)
+      const safeUrl = `${urlParam}`
+      
+      // 2. 解码 + 空值兜底 (解决输出类型的警告)
+      // decodeURIComponent 可能返回 string | null
+      // 使用 ?? "" 表示：如果是 null，就赋值为空字符串
+      this.targetUrl = decodeURIComponent(safeUrl) ?? ""
+    }
+  }
+}
+</script>
+
+<style scoped>
+.container {
+  flex: 1;
+  background-color: #fff;
+}
+
+.webview {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+</style>

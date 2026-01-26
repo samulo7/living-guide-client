@@ -1,0 +1,149 @@
+<template>
+  <view 
+    class="card" 
+    hover-class="card-active"
+    @click="handleClick"
+  >
+    <view class="cover-box">
+      <image 
+        class="cover-image" 
+        :src="coverUrl" 
+        mode="aspectFill"
+      ></image>
+      <view v-if="data.is_verified" class="trust-badge">
+        <text class="badge-icon">🏆</text>
+        <text class="badge-text">UP主实探</text>
+      </view>
+    </view>
+
+    <view class="content">
+      <view class="header-row">
+        <view class="title-wrap">
+          <text class="city-name">{{ data.city }}</text>
+          <text class="district-name">· {{ data.district }}</text>
+        </view>
+      </view>
+
+      <view class="tags-row">
+        <view v-if="data.has_hospital_class_a" class="tag tag-medical-a">
+          <text class="tag-text-a">🏥 三甲配套</text>
+        </view>
+        <view v-else class="tag tag-medical-b">
+          <text class="tag-text-b">💊 基础医疗</text>
+        </view>
+
+        <view v-for="(tag, index) in displayTags" :key="index" class="tag">
+          <text class="tag-text">{{ tag }}</text>
+        </view>
+      </view>
+
+      <view class="data-row">
+        <view class="price-group">
+          <view class="rent-wrap">
+            <text class="currency">¥</text>
+            <text class="price-val">{{ data.price_rent }}</text>
+            <text class="unit">/月</text>
+          </view>
+          <text class="buy-price" v-if="data.price_buy">
+            (买房 {{ data.price_buy }})
+          </text>
+        </view>
+      </view>
+
+      <view class="quote-box" v-if="guruQuote">
+        <text class="quote-text">小编: {{ guruQuote }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { CityItem } from '../types/city'
+
+interface Props { data: CityItem }
+const props = defineProps<Props>()
+const emit = defineEmits<{ click: [] }>()
+
+const coverUrl = computed((): string => {
+  if (props.data.cover_image && props.data.cover_image.trim() !== '') {
+    return props.data.cover_image
+  }
+  let idNum = 1
+  try {
+      const str = props.data.id
+      const parsed = parseInt(str)
+      if (!isNaN(parsed)) idNum = parsed
+  } catch(e){}
+  const index = (idNum % 4) + 1
+  return `/static/images/${index}.jpg`
+})
+
+const displayTags = computed(() => props.data.tags.slice(0, 2))
+const guruQuote = computed(() => props.data.detail?.guru_comment || '')
+
+const handleClick = () => emit('click')
+</script>
+
+<style scoped>
+.card {
+  flex-direction: row;
+  background-color: #ffffff;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.card-active { opacity: 0.8; }
+
+.cover-box {
+  width: 110px;
+  height: 110px;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  margin-right: 12px;
+  background-color: #f0f0f0;
+  flex-shrink: 0;
+}
+.cover-image { width: 100%; height: 100%; }
+
+.trust-badge {
+  position: absolute; top: 0; left: 0; z-index: 10;
+  background-image: linear-gradient(135deg, #FFD700 0%, #FFB900 100%);
+  padding: 4px 6px;
+  border-bottom-right-radius: 8px;
+  flex-direction: row; align-items: center;
+}
+.badge-icon { font-size: 10px; margin-right: 2px; }
+.badge-text { font-size: 10px; color: #5d4037; font-weight: 900; }
+
+.content { flex: 1; justify-content: space-between; padding: 2px 0; }
+.header-row { flex-direction: row; }
+.title-wrap { flex-direction: row; align-items: baseline; }
+.city-name { font-size: 17px; font-weight: bold; color: #333; }
+.district-name { font-size: 13px; color: #999; margin-left: 4px; }
+
+/* ✅ 修改点：标签样式 */
+.tags-row { flex-direction: row; margin-top: 6px; flex-wrap: wrap; }
+.tag { background-color: #F5F7FA; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-bottom: 4px;}
+.tag-text { font-size: 11px; color: #666; }
+
+/* 绿色三甲标 */
+.tag-medical-a { background-color: #E8F5E9; border: 1px solid #A5D6A7; }
+.tag-text-a { font-size: 11px; color: #2E7D32; font-weight: bold; }
+
+/* 灰色基础标 */
+.tag-medical-b { background-color: #F5F5F5; border: 1px solid #E0E0E0; }
+.tag-text-b { font-size: 11px; color: #616161; }
+
+.data-row { margin-top: 8px; }
+.price-group { flex-direction: row; align-items: baseline; }
+.rent-wrap { flex-direction: row; align-items: baseline; }
+.currency { font-size: 12px; color: #E65100; font-weight: bold; }
+.price-val { font-size: 20px; font-weight: 900; color: #E65100; font-family: Arial, sans-serif; }
+.unit { font-size: 11px; color: #999; margin-right: 6px; }
+.buy-price { font-size: 11px; color: #999; }
+.quote-box { background-color: #F9F9F9; border-radius: 4px; padding: 4px 6px; margin-top: 8px; }
+.quote-text { font-size: 11px; color: #666; lines: 1; text-overflow: ellipsis; }
+</style>

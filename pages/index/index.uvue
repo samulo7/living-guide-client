@@ -1,0 +1,189 @@
+<template>
+  <view class="container">
+    <view class="header">
+      <view class="header-text">
+        <text class="title">躺平指南</text>
+        <text class="subtitle">低成本旅居决策工具</text>
+      </view>
+    </view>
+
+    <view class="search-section">
+      <view class="search-bar">
+        <text class="search-icon">🔍</text>
+        <input 
+          class="search-input" 
+          placeholder="搜索城市 (如: 鹤岗)"
+          v-model="keyword"
+          @input="onSearch"
+        />
+      </view>
+    </view>
+
+    <scroll-view 
+      class="quick-filter" 
+      direction="horizontal" 
+      :show-scrollbar="false"
+    >
+      <view class="filter-container">
+        <view 
+          v-for="filter in quickFilters" 
+          :key="filter.value"
+          class="filter-tag"
+          :class="{ active: currentFilter === filter.value }"
+          @click="onQuickFilter(filter.value)"
+        >
+          <text :class="['tag-text', currentFilter === filter.value ? 'active-text' : '']">
+            {{ filter.label }}
+          </text>
+        </view>
+        <view style="width: 20px; height: 10px;"></view>
+      </view>
+    </scroll-view>
+
+    <view v-if="loading" class="loading-box">
+      <text class="loading-text">正在加载数据...</text>
+    </view>
+
+    <scroll-view 
+          v-else 
+          class="city-list"
+          direction="vertical"
+        >
+          <view v-if="filteredList.length === 0" class="empty-box">
+            <text class="empty-text">没找到结果，试着换个词？</text>
+          </view>
+          
+          <city-card
+            v-for="item in filteredList"
+            :key="item.id"
+            :data="item"
+            @click="goToDetail(item.id)"
+          />
+        </scroll-view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import CityCard from '../../components/CityCard.uvue'
+import { loadCityData } from '../../utils/dataLoader'
+import type { CityItem } from '../../types/city'
+
+// 状态管理
+const allData = ref<CityItem[]>([])
+const loading = ref(true)
+const currentFilter = ref('all')
+const keyword = ref('')
+
+// 筛选配置
+const quickFilters = [
+  { label: '全部', value: 'all' },
+  { label: '💰 租金<500', value: 'cheap' },
+  { label: '🌊 海边城市', value: 'seaside' },
+  { label: '🌸 四季如春', value: 'spring' },
+  { label: '🏆 UP主实探', value: 'verified' }
+]
+
+// 核心筛选逻辑
+const filteredList = computed(() => {
+  let result = allData.value
+
+  if (currentFilter.value === 'cheap') {
+    result = result.filter(item => item.price_rent <= 500)
+  } else if (currentFilter.value === 'seaside') {
+    result = result.filter(item => item.tags.some(tag => tag.includes('海') || tag.includes('水')))
+  } else if (currentFilter.value === 'spring') {
+    result = result.filter(item => item.tags.some(tag => tag.includes('春') || tag.includes('避暑')))
+  } else if (currentFilter.value === 'verified') {
+    result = result.filter(item => item.is_verified)
+  }
+
+  if (keyword.value.trim() !== '') {
+    const kw = keyword.value.toLowerCase()
+    result = result.filter(item => 
+      item.city.toLowerCase().includes(kw) ||
+      item.district.toLowerCase().includes(kw) ||
+      item.tags.some(tag => tag.toLowerCase().includes(kw))
+    )
+  }
+  
+  // 价格排序
+  return [...result].sort((a, b) => a.price_rent - b.price_rent)
+})
+
+const onQuickFilter = (value: string) => currentFilter.value = value
+const onSearch = () => {} // v-model 自动触发
+const goToDetail = (id: string) => uni.navigateTo({ url: `/pages/detail/detail?id=${id}` })
+
+onMounted(async () => {
+  try {
+    const data = await loadCityData()
+    allData.value = data.items
+    loading.value = false
+  } catch (error) {
+    loading.value = false
+  }
+})
+</script>
+
+<style scoped>
+.container {
+  background-color: #f5f7fa;
+    
+    /* --- 修复点 Start --- */
+    
+    /* ❌ 删掉这行：min-height: 100%; */
+    /* ✅ 改为这行：强制高度等于屏幕高度 */
+    height: 100vh; 
+    
+    /* ✅ 关键：启用 Flex 布局，让内部的列表自动占满剩余空间 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* 防止容器本身溢出 */
+  
+    /* --- 颜值优化保留 --- */
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    /* --- 修复点 End --- */
+}
+.list-container {
+  padding: 12px;
+}
+
+/* 头部样式 */
+.header {
+  background-image: linear-gradient(135deg, #749F82 0%, #5C8D89 100%);
+  padding: 50px 20px 15px;
+  align-items: flex-start;
+}
+.header-text { flex-direction: row; align-items: baseline; }
+.title { font-size: 22px; font-weight: 900; color: #fff; margin-right: 10px; }
+.subtitle { font-size: 13px; color: rgba(255,255,255,0.8); }
+
+/* 搜索栏 */
+.search-section { background-color: #fff; padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }
+.search-bar { background-color: #f5f5f5; height: 36px; border-radius: 18px; flex-direction: row; align-items: center; padding: 0 12px; }
+.search-icon { font-size: 14px; margin-right: 8px; }
+.search-input { flex: 1; font-size: 14px; color: #333; background-color: transparent; }
+
+/* 滚动筛选栏 */
+.quick-filter { width: 100%; height: 50px; background-color: #fff; margin-bottom: 10px; flex-direction: row; }
+.filter-container { display: flex; flex-direction: row; align-items: center; padding: 8px 16px; }
+.filter-tag { flex-shrink: 0; padding: 6px 14px; margin-right: 10px; background-color: #f5f5f5; border-radius: 16px; border-width: 1px; border-style: solid; border-color: transparent; }
+.filter-tag.active { background-color: #E8F5E9; border-color: #749F82; }
+.tag-text { font-size: 13px; color: #666; }
+.active-text { color: #426B50; font-weight: bold; }
+
+.city-list { 
+  /* ✅ 核心修复：占据剩余所有高度 */
+  flex: 1;
+  width: 100%;
+  
+  /* 保持原有的内边距 */
+  padding: 0 16px 20px; 
+}
+.loading-box, .empty-box { padding: 50px 0; align-items: center; justify-content: center; }
+.loading-text, .empty-text { font-size: 14px; color: #999; }
+</style>

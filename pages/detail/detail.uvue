@@ -1,0 +1,401 @@
+<template>
+  <view class="page-container">
+    <view class="nav-placeholder"></view>
+
+    <scroll-view class="scroll-content" direction="vertical">
+      <view class="hero-section">
+        <image 
+          class="hero-image" 
+          :src="coverUrl" 
+          mode="aspectFill"
+          @error="onImageError"
+        ></image>
+        
+        <view class="hero-overlay">
+          <text class="hero-city">{{ cityItem.city }}</text>
+          <text class="hero-district">{{ cityItem.district }}</text>
+        </view>
+        <view class="back-btn" @click="goBack">
+          <text class="back-arrow">←</text>
+        </view>
+      </view>
+
+      <view class="dashboard-card">
+        <view class="dashboard-header">
+          <text class="section-title">生活成本 & 配套</text>
+          <text class="update-time">更新于 {{ updateDate }}</text>
+        </view>
+        
+        <view class="stats-grid">
+          <view class="stat-item">
+            <text class="stat-label">月租金</text>
+            <text class="stat-value price">¥{{ cityItem.price_rent }}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">买房</text>
+            <text class="stat-value">{{ cityItem.price_buy || '暂无' }}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">交通</text>
+            <text class="stat-value">{{ transportSummary }}</text>
+          </view>
+        </view>
+
+        <view class="map-btn-wrap" v-if="hasLocation" @click="openMap">
+          <text class="map-btn-text">📍 查看地图位置</text>
+          <text class="map-arrow">></text>
+        </view>
+      </view>
+
+      <view class="content-section">
+        
+        <view class="section-title-row">
+            <text class="section-title-text">🏥 医疗环境评估</text>
+        </view>
+        <view class="medical-card" :class="medicalInfo['bgClass']">
+          <view class="medical-header">
+            <text class="medical-icon">{{ medicalInfo['icon'] }}</text>
+            <text class="medical-title">{{ medicalInfo['title'] }}</text>
+          </view>
+          <text class="medical-desc">{{ medicalInfo['desc'] }}</text>
+          <view class="medical-divider"></view>
+          <text class="medical-raw">配置详情: {{ cityItem.medical }}</text>
+          <text class="medical-tips">{{ medicalInfo['tips'] }}</text>
+        </view>
+
+        <view class="guru-card" v-if="guruQuote">
+          <view class="block-header">
+            <text class="block-icon">📝</text> 
+            <text class="block-title">小编点评</text>
+          </view>
+          <text class="block-text">{{ guruQuote }}</text>
+        </view>
+
+        <view class="content-block climate-block" v-if="climateInfo">
+          <view class="block-header">
+            <text class="block-icon">🌤️</text>
+            <text class="block-title">气候体感</text>
+          </view>
+          <text class="block-text">{{ climateInfo }}</text>
+        </view>
+
+        <view class="content-block cons-block" v-if="consInfo">
+          <view class="block-header">
+            <text class="block-icon">⚠️</text>
+            <text class="block-title warning-text">注意/避坑</text>
+          </view>
+          <text class="block-text">{{ consInfo }}</text>
+        </view>
+        
+        <view style="height: 100px;"></view>
+      </view>
+    </scroll-view>
+
+    <view class="footer-bar">
+      <view class="action-btn btn-secondary" hover-class="btn-pressed" @click="openFeedbackModal">
+        <text class="btn-text text-secondary">我要纠错</text>
+      </view>
+      <view class="action-btn btn-primary" hover-class="btn-pressed">
+        <text class="btn-text text-primary">收藏城市</text>
+      </view>
+    </view>
+
+    <view class="modal-mask" v-if="showModal" @click="closeModal">
+      <view class="modal-content" @click.stop>
+        <view class="modal-header">
+          <text class="modal-title">补充城市信息</text>
+          <text class="close-icon" @click="closeModal">✕</text>
+        </view>
+        <scroll-view class="modal-body" direction="vertical">
+          <text class="form-label">纠错类型</text>
+          <view class="tags-container">
+            <view class="form-tag" :class="{ 'tag-active': feedbackType === 'price' }" @click="feedbackType = 'price'">
+              <text class="form-tag-text" :class="{ 'text-active': feedbackType === 'price' }">数据过期</text>
+            </view>
+            <view class="form-tag" :class="{ 'tag-active': feedbackType === 'pitfall' }" @click="feedbackType = 'pitfall'">
+              <text class="form-tag-text" :class="{ 'text-active': feedbackType === 'pitfall' }">🔥 补充槽点</text>
+            </view>
+            <view class="form-tag" :class="{ 'tag-active': feedbackType === 'other' }" @click="feedbackType = 'other'">
+              <text class="form-tag-text" :class="{ 'text-active': feedbackType === 'other' }">其他</text>
+            </view>
+          </view>
+          <text class="form-label">详细描述</text>
+          <textarea class="form-textarea" :placeholder="placeholderText" v-model="feedbackContent" :maxlength="200"></textarea>
+          <text class="form-label">上传凭证 (选填)</text>
+          <view class="upload-box">
+            <text class="upload-icon">📷</text>
+            <text class="upload-text">点击上传图片</text>
+          </view>
+        </scroll-view>
+        <view class="modal-footer">
+          <view class="submit-btn" hover-class="btn-pressed" @click="submitFeedback">
+            <text class="submit-text">提交审核</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { loadCityData } from '../../utils/dataLoader'
+import type { CityItem } from '../../types/city'
+import { onLoad } from '@dcloudio/uni-app'
+
+const emptyItem = {
+  id: '', city: '加载中...', district: '', title: '',
+  price_rent: 0, price_buy: '', tags: [] as string[], 
+  medical: '', transport: '', cover_image: '', is_verified: false,
+  detail: { guru_comment: '', climate_info: '', cons: '', medical_desc: '', transport_desc: '' },
+  radar_data: { cost: 0, medical: 0, transport: 0, climate: 0, fun: 0 },
+  location: { lat: 0, lng: 0 },
+  has_hospital_class_a: false 
+} as CityItem
+
+const cityItem = ref<CityItem>(emptyItem)
+const updateDate = ref('2026.01')
+// ✅ 修改点 2：新增图片加载错误状态
+const imgLoadError = ref(false)
+
+onLoad(async (options) => {
+  const id = options['id']
+  if (id != null) { await initData(id as string) }
+})
+
+const initData = async (id: string) => {
+  try {
+    const data = await loadCityData()
+    updateDate.value = data.update_date
+    const found = data.items.find((item: CityItem): boolean => item.id == id)
+    if (found != null) { 
+      cityItem.value = found 
+      // 每次加载新数据，重置错误状态
+      imgLoadError.value = false
+    }
+  } catch (e) { console.error('加载详情失败', e) }
+}
+
+// ✅ 修改点 3：智能封面图逻辑
+const coverUrl = computed((): string => {
+  // 1. 先计算一个兜底的随机图 (1.jpg ~ 4.jpg)
+  let idNum = 1
+  try { 
+    const str = cityItem.value.id
+    const parsed = parseInt(str)
+    if (!isNaN(parsed)) idNum = parsed
+  } catch(e){}
+  const index = (idNum % 4) + 1
+  const fallbackUrl = `/static/images/${index}.jpg`
+
+  // 2. 如果发生了加载错误，直接返回兜底图
+  if (imgLoadError.value) {
+    return fallbackUrl
+  }
+
+  // 3. 如果有配置图片，且不为空，尝试显示配置的图片
+  if (cityItem.value.cover_image && cityItem.value.cover_image.trim() !== "") {
+    return cityItem.value.cover_image
+  }
+
+  // 4. 默认返回兜底图
+  return fallbackUrl
+})
+
+// ✅ 修改点 4：图片加载失败的回调
+const onImageError = () => {
+  console.log('⚠️ 图片加载失败，已自动切换为示例图')
+  imgLoadError.value = true
+}
+
+const transportSummary = computed(() => {
+  const t = cityItem.value.transport || ''
+  if (t.includes('高铁')) return '高铁直达'
+  if (t.includes('机场')) return '有机场'
+  return '火车站'
+})
+
+const hasLocation = computed((): boolean => {
+  const loc = cityItem.value.location
+  return loc.lat != 0 && loc.lng != 0
+})
+
+const openMap = () => {
+  const loc = cityItem.value.location
+  const name = cityItem.value.city + cityItem.value.district
+  const url = `https://uri.amap.com/marker?position=${loc.lng},${loc.lat}&name=${name}&coordinate=gaode&callnative=1`
+  uni.navigateTo({ url: `/pages/webview/webview?url=${encodeURIComponent(url)}` })
+}
+
+const guruQuote = computed(() => cityItem.value.detail?.guru_comment || '')
+const climateInfo = computed(() => cityItem.value.detail?.climate_info || '')
+const consInfo = computed(() => cityItem.value.detail?.cons || '')
+
+const medicalInfo = computed(() => {
+  if (!cityItem.value) return { bgClass: '', icon: '', title: '', desc: '', tips: '' }
+  const has3A = cityItem.value.has_hospital_class_a
+  if (has3A) {
+    return { bgClass: 'bg-green', icon: '✅', title: '医疗资源：完善 (三甲覆盖)', desc: '区域内配有三甲医院，医疗硬件条件较好。', tips: '💡 适宜人群：全龄段，包含老人、慢性病人群或追求安全感的独居者。' }
+  } else {
+    return { bgClass: 'bg-gray', icon: '⚠️', title: '医疗资源：基础保障', desc: '暂未收录三甲医院信息，以社区/县级医院为主。', tips: '💡 适宜人群：身体健康的青壮年。\n⚠️ 注意：如需长期居住，建议自备常用药。' }
+  }
+})
+
+const goBack = () => uni.navigateBack({})
+
+// --- 弹窗逻辑 ---
+const showModal = ref(false)
+const feedbackType = ref('pitfall')
+const feedbackContent = ref('')
+
+const placeholderText = computed(() => {
+  if (feedbackType.value === 'pitfall') {
+    return '例如：冬天暖气不足、夏天蚊虫太多、快递不包邮...（您的吐槽将帮助更多人）'
+  } else if (feedbackType.value === 'price') {
+    return '例如：现在房租涨价了，大概 800/月...'
+  } else {
+    return '请详细描述您的问题...'
+  }
+})
+
+const openFeedbackModal = () => {
+  showModal.value = true
+  feedbackType.value = 'pitfall'
+  feedbackContent.value = ''
+}
+
+const closeModal = () => { showModal.value = false }
+
+const submitFeedback = () => {
+  if (feedbackContent.value.trim() === '') {
+    uni.showToast({ title: '请填写描述内容', icon: 'none' })
+    return
+  }
+  uni.showLoading({ title: '提交中...', mask: true })
+  setTimeout(() => {
+    uni.hideLoading()
+    console.log('📝 [新用户投稿] ------------------------------')
+    console.log('城市:', cityItem.value.city)
+    console.log('类型:', feedbackType.value === 'pitfall' ? '补充槽点' : '其他')
+    console.log('内容:', feedbackContent.value)
+    console.log('--------------------------------------------')
+    showModal.value = false
+    uni.showToast({ title: '感谢提交！审核通过后将更新至指南', icon: 'success', duration: 3000 })
+    feedbackContent.value = ''
+    feedbackType.value = 'pitfall'
+  }, 1000)
+}
+</script>
+
+<style scoped>
+/* --- 布局基础 --- */
+.page-container { flex: 1; background-color: #f5f7fa; height: 100vh; display: flex; flex-direction: column; }
+.scroll-content { flex: 1; }
+.hero-section { position: relative; height: 280px; width: 100%; }
+.hero-image { width: 100%; height: 100%; }
+.hero-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px; background-image: linear-gradient(to top, rgba(0,0,0,0.7), transparent); }
+.hero-city { font-size: 32px; font-weight: 900; color: #fff; }
+.hero-district { font-size: 16px; color: rgba(255,255,255,0.9); margin-top: 4px; }
+.back-btn { position: absolute; top: 50px; left: 20px; width: 40px; height: 40px; background-color: rgba(0,0,0,0.3); border-radius: 20px; justify-content: center; align-items: center; }
+.back-arrow { color: #fff; font-size: 20px; font-weight: bold; }
+
+/* --- 核心数据卡片 --- */
+.dashboard-card { margin: -20px 16px 0; background-color: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); position: relative; }
+.dashboard-header { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.section-title { font-size: 18px; font-weight: bold; color: #333; }
+.update-time { font-size: 12px; color: #999; }
+.stats-grid { flex-direction: row; justify-content: space-between; }
+.stat-item { align-items: center; flex: 1; }
+.stat-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+.stat-value { font-size: 15px; font-weight: bold; color: #333; }
+.price { color: #ff5500; font-size: 18px; }
+
+/* 地图按钮 */
+.map-btn-wrap {
+  margin-top: 20px;
+  background-color: #F7F8FA; 
+  border-radius: 8px;
+  padding: 12px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.map-btn-text { color: #5C8D89; font-size: 14px; font-weight: bold; }
+.map-arrow { color: #5C8D89; font-size: 14px; margin-left: 4px; }
+
+.content-section { padding: 20px 16px; }
+
+/* --- 医疗卡片 --- */
+.section-title-row { margin-bottom: 12px; }
+.section-title-text { font-size: 18px; font-weight: bold; color: #333; }
+.medical-card { margin-bottom: 20px; padding: 16px; border-radius: 12px; }
+.bg-green { background-color: #F1F8E9; border: 1px solid #DCEDC8; }
+.bg-gray { background-color: #FAFAFA; border: 1px solid #EEEEEE; }
+.medical-header { flex-direction: row; align-items: center; margin-bottom: 8px; }
+.medical-icon { font-size: 18px; margin-right: 6px; }
+.medical-title { font-size: 16px; font-weight: bold; color: #333; }
+.medical-desc { font-size: 14px; color: #555; line-height: 1.5; margin-bottom: 8px; }
+.medical-divider { height: 1px; background-color: rgba(0,0,0,0.05); margin: 8px 0; }
+.medical-raw { font-size: 12px; color: #999; margin-bottom: 8px; }
+.medical-tips { font-size: 13px; color: #666; background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; line-height: 1.6; }
+
+/* --- ✅ 小编点评 (独立类名，确保不被污染) --- */
+.guru-card {
+ background-color: #F0F4F8;  /* 柔和的蓝灰色 */
+   border-radius: 12px;
+   padding: 16px;
+   margin-bottom: 16px;
+   border: 1px solid #E0E7EE;
+}
+
+/* --- 通用内容块 (气候/其他) --- */
+.content-block { 
+  background-color: #fff; 
+  border-radius: 12px; 
+  padding: 16px; 
+  margin-bottom: 16px; 
+}
+.block-header { flex-direction: row; align-items: center; margin-bottom: 10px; }
+.block-icon { font-size: 18px; margin-right: 8px; }
+.block-title { font-size: 16px; font-weight: bold; color: #333; }
+.block-text { font-size: 15px; color: #555; line-height: 1.6; }
+
+/* 气候体感 (蓝) */
+.climate-block { background-color: #F0F9FF; border: 1px solid #E1F5FE; }
+.climate-block .block-title, .climate-block .block-icon { color: #0288D1; }
+
+/* 避坑指南 (黄) */
+.cons-block { background-color: #FFFBE6; border: 1px solid #FFE58F; border-radius: 12px; padding: 16px; margin-bottom: 16px; margin-top: 24px; }
+.cons-block .block-title, .cons-block .warning-text, .cons-block .block-icon { color: #D48806 !important; }
+.cons-block .block-text { color: #555; }
+
+/* --- 底部 & 弹窗 --- */
+.footer-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 80px; background-color: #fff; border-top: 1px solid #f0f0f0; flex-direction: row; align-items: center; padding: 0 20px 20px; justify-content: space-between; gap: 12px; }
+.action-btn { height: 44px; border-radius: 22px; justify-content: center; align-items: center; flex: 1; }
+.btn-pressed { transform: scale(0.96); opacity: 0.9; transition-duration: 0.1s; }
+.btn-secondary { background-color: #FFFFFF; border: 1px solid #E0E0E0; }
+.text-secondary { color: #333333; font-size: 15px; font-weight: bold; }
+.btn-primary { background-color: #5C8D89; border: none; }
+.text-primary { color: #FFFFFF; font-size: 15px; font-weight: bold; }
+
+.modal-mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; display: flex; }
+.modal-content { width: 300px; background-color: #fff; border-radius: 16px; overflow: hidden; padding-bottom: 20px; }
+.modal-header { flex-direction: row; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
+.modal-title { font-size: 16px; font-weight: bold; color: #333; }
+.close-icon { font-size: 20px; color: #999; padding: 4px; }
+.modal-body { padding: 20px; max-height: 400px; }
+.form-label { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 10px; margin-top: 10px; }
+.form-label:first-child { margin-top: 0; }
+.tags-container { flex-direction: row; flex-wrap: wrap; margin-bottom: 10px; }
+.form-tag { padding: 6px 12px; background-color: #f5f5f5; border-radius: 20px; margin-right: 10px; margin-bottom: 10px; border: 1px solid transparent; }
+.form-tag-text { font-size: 13px; color: #666; }
+.tag-active { background-color: #E8F5E9; border-color: #5C8D89; }
+.text-active { color: #5C8D89; font-weight: bold; }
+.form-textarea { width: 100%; height: 100px; background-color: #f9f9f9; border-radius: 8px; padding: 10px; font-size: 14px; color: #333; }
+.upload-box { width: 100px; height: 100px; background-color: #f9f9f9; border: 1px dashed #ddd; border-radius: 8px; justify-content: center; align-items: center; }
+.upload-icon { font-size: 24px; color: #ccc; margin-bottom: 4px; }
+.upload-text { font-size: 10px; color: #999; }
+.modal-footer { padding: 0 20px; }
+.submit-btn { height: 44px; background-color: #333; border-radius: 22px; justify-content: center; align-items: center; }
+.submit-text { color: #fff; font-size: 15px; font-weight: bold; }
+</style>

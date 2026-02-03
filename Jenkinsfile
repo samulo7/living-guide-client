@@ -98,7 +98,7 @@ pipeline {
                     fi
 
                     # 2. 从容器内部测试 80 端口 (绕过 Jenkins 网络隔离问题)
-                    if docker exec ${CONTAINER_NAME} wget --spider -q http://localhost:80; then
+                    if docker exec ${CONTAINER_NAME} wget --spider -q http://127.0.0.1:80; then
                          echo "✅ 健康检查通过！服务运行正常。"
                     else
                          echo "❌ Nginx 端口无响应"

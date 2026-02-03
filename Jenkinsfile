@@ -11,8 +11,18 @@ pipeline {
         stage('1. 拉取代码') {
             steps {
                 echo '正在拉取最新代码...'
-                git branch: 'main',
-                    url: 'git@github.com:samulo7/living-guide-client.git'
+                // 核心修改：指定 credentialsId (对应你在 Jenkins 界面填写的 ID)
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: '*/main']], 
+                    userRemoteConfigs: [[
+                        url: 'git@github.com:samulo7/living-guide-client.git',
+                        credentialsId: 'github-key' // <--- 这里必须填你刚才创建的凭据ID
+                    ]],
+                    extensions: [
+                        [$class: 'CloneOption', timeout: 30] // 设置 30 分钟超时，防止网络慢断开
+                    ]
+                ])
             }
         }
         
@@ -87,21 +97,25 @@ pipeline {
     }
     
     post {
-        success {
-            echo '========================================='
-            echo '✅ 部署成功！'
-            echo "访问地址: http://YOUR_SERVER_IP:${HOST_PORT}"
-            echo '========================================='
+        always {
+            script {
+                // 使用 env. 前缀更安全
+                if (env.IMAGE_NAME) {
+                    echo "构建编号: ${BUILD_NUMBER}"
+                    echo "镜像标签: ${IMAGE_NAME}:${BUILD_NUMBER}"
+                }
+            }
         }
         failure {
-            echo '========================================='
-            echo '❌ 部署失败，查看日志：'
-            sh 'docker logs ${CONTAINER_NAME} || true'
-            echo '========================================='
+            script {
+                echo '❌ 部署失败。'
+                // 只有当 node 分配成功时才能运行 sh，否则会报 FilePath missing
+                // 这里加个 try-catch 仅仅为了不让日志太难看
+                try {
+                    sh 'docker logs ${CONTAINER_NAME} || true'
+                } catch (Exception e) {
+                    echo "无法获取容器日志（可能尚未创建容器）"
+                }
+            }
         }
-        always {
-            echo "构建编号: ${BUILD_NUMBER}"
-            echo "镜像标签: ${IMAGE_NAME}:${BUILD_NUMBER}"
-        }
-    }
 }

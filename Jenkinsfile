@@ -4,23 +4,22 @@ pipeline {
     environment {
         IMAGE_NAME = 'living-guide'
         CONTAINER_NAME = 'living-guide'
-        HOST_PORT = '8888'  // 宿主机端口
+        HOST_PORT = '8888'
     }
     
     stages {
         stage('1. 拉取代码') {
             steps {
                 echo '正在拉取最新代码...'
-                // 核心修改：指定 credentialsId (对应你在 Jenkins 界面填写的 ID)
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: '*/main']], 
                     userRemoteConfigs: [[
                         url: 'git@github.com:samulo7/living-guide-client.git',
-                        credentialsId: 'github-key' // <--- 这里必须填你刚才创建的凭据ID
+                        credentialsId: 'github-key'
                     ]],
                     extensions: [
-                        [$class: 'CloneOption', timeout: 30] // 设置 30 分钟超时，防止网络慢断开
+                        [$class: 'CloneOption', timeout: 30]
                     ]
                 ])
             }
@@ -99,7 +98,6 @@ pipeline {
     post {
         always {
             script {
-                // 使用 env. 前缀更安全
                 if (env.IMAGE_NAME) {
                     echo "构建编号: ${BUILD_NUMBER}"
                     echo "镜像标签: ${IMAGE_NAME}:${BUILD_NUMBER}"
@@ -109,8 +107,6 @@ pipeline {
         failure {
             script {
                 echo '❌ 部署失败。'
-                // 只有当 node 分配成功时才能运行 sh，否则会报 FilePath missing
-                // 这里加个 try-catch 仅仅为了不让日志太难看
                 try {
                     sh 'docker logs ${CONTAINER_NAME} || true'
                 } catch (Exception e) {
@@ -118,4 +114,5 @@ pipeline {
                 }
             }
         }
-}
+    } // 关闭 post
+} // 关闭 pipeline <--- 刚才就是少了这一个！

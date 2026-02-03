@@ -84,22 +84,26 @@ pipeline {
             }
         }
         
-        stage('6. 健康检查') {
+       stage('6. 健康检查') {
             steps {
                 echo '正在进行健康检查...'
                 sh '''
-                    sleep 2
-                    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT})
-                    echo "HTTP 状态码: $HTTP_CODE"
+                    sleep 5
+                    echo "正在检查 Nginx 服务..."
                     
-                    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "304" ]; then
-                        echo "✅ 健康检查通过！"
+                    # 1. 检查容器是否存活
+                    if [ "$(docker inspect -f '{{.State.Running}}' ${CONTAINER_NAME})" != "true" ]; then
+                        echo "❌ 容器未运行"
+                        exit 1
+                    fi
+
+                    # 2. 从容器内部测试 80 端口 (绕过 Jenkins 网络隔离问题)
+                    if docker exec ${CONTAINER_NAME} wget --spider -q http://localhost:80; then
+                         echo "✅ 健康检查通过！服务运行正常。"
                     else
-                        echo "⚠️ HTTP 状态码非 200/304，查看容器日志："
-                        docker logs --tail 20 ${CONTAINER_NAME}
-                        echo ""
-                        echo "容器内文件列表："
-                        docker exec ${CONTAINER_NAME} ls -la /usr/share/nginx/html/
+                         echo "❌ Nginx 端口无响应"
+                         docker logs --tail 20 ${CONTAINER_NAME}
+                         exit 1
                     fi
                 '''
             }

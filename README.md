@@ -1,5 +1,5 @@
 ```
-# 🏙️ 宜居指南 (Living Guide Client)
+# 🏙️ 躺平指南 (Living Guide Client)
 
 > 一个基于 Uni-app x 开发的城市宜居评估 App，致力于帮助数字游民和旅居者找到最适合自己的“梦中情城”。
 

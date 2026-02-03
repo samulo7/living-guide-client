@@ -4,7 +4,7 @@ FROM nginx:alpine
 COPY . /usr/share/nginx/html
 
 # 删除不需要的文件
-RUN rm -f /usr/share/nginx/html/Dockerfile \
+RUN rm -rf /usr/share/nginx/html/Dockerfile \
           /usr/share/nginx/html/Jenkinsfile \
           /usr/share/nginx/html/nginx.conf \
           /usr/share/nginx/html/.gitignore \

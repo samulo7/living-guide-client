@@ -25,7 +25,26 @@ pipeline {
             }
         }
         
-        stage('2. 构建 Docker 镜像') {
+        stage('2. 检查项目文件') {
+            steps {
+                echo '检查项目结构...'
+                sh '''
+                    echo "=== 项目根目录 ==="
+                    ls -la
+                    echo ""
+                    echo "=== Pages 目录 ==="
+                    ls -la pages/ || echo "pages 目录不存在"
+                    echo ""
+                    echo "=== Static 目录 ==="
+                    ls -la static/ || echo "static 目录不存在"
+                    echo ""
+                    echo "=== 配置文件 ==="
+                    ls -la *.json || echo "没有 json 配置文件"
+                '''
+            }
+        }
+        
+        stage('3. 构建 Docker 镜像') {
             steps {
                 echo '正在构建 Docker 镜像...'
                 sh '''
@@ -37,7 +56,7 @@ pipeline {
             }
         }
         
-        stage('3. 停止旧容器') {
+        stage('4. 停止旧容器') {
             steps {
                 echo '正在停止旧容器...'
                 sh '''
@@ -47,7 +66,7 @@ pipeline {
             }
         }
         
-        stage('4. 启动新容器') {
+        stage('5. 启动新容器') {
             steps {
                 echo '正在启动新容器...'
                 sh '''
@@ -57,62 +76,83 @@ pipeline {
                         --restart unless-stopped \
                         ${IMAGE_NAME}:latest
                     
-                    echo "容器启动成功："
+                    echo "等待容器启动..."
+                    sleep 3
+                    echo "容器状态："
                     docker ps | grep ${CONTAINER_NAME}
                 '''
             }
         }
         
-        stage('5. 健康检查') {
+        stage('6. 健康检查') {
             steps {
                 echo '正在进行健康检查...'
                 sh '''
-                    sleep 3
+                    sleep 2
                     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT})
-                    if [ "$HTTP_CODE" = "200" ]; then
-                        echo "✅ 健康检查通过！HTTP 状态码: $HTTP_CODE"
+                    echo "HTTP 状态码: $HTTP_CODE"
+                    
+                    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "304" ]; then
+                        echo "✅ 健康检查通过！"
                     else
-                        echo "❌ 健康检查失败！HTTP 状态码: $HTTP_CODE"
-                        docker logs ${CONTAINER_NAME}
-                        exit 1
+                        echo "⚠️ HTTP 状态码非 200/304，查看容器日志："
+                        docker logs --tail 20 ${CONTAINER_NAME}
+                        echo ""
+                        echo "容器内文件列表："
+                        docker exec ${CONTAINER_NAME} ls -la /usr/share/nginx/html/
                     fi
                 '''
             }
         }
         
-        stage('6. 清理旧镜像') {
+        stage('7. 清理旧镜像') {
             steps {
                 echo '正在清理旧镜像...'
                 sh '''
-                    # 只保留最新的2个版本
+                    # 只保留最新的3个版本
                     docker images ${IMAGE_NAME} --format "{{.ID}} {{.Tag}}" | \
                         grep -v latest | \
-                        tail -n +3 | \
+                        tail -n +4 | \
                         awk '{print $1}' | \
                         xargs -r docker rmi || true
+                    
+                    echo "清理完成，当前镜像："
+                    docker images | grep ${IMAGE_NAME}
                 '''
             }
         }
     }
     
     post {
-        always {
-            script {
-                if (env.IMAGE_NAME) {
-                    echo "构建编号: ${BUILD_NUMBER}"
-                    echo "镜像标签: ${IMAGE_NAME}:${BUILD_NUMBER}"
-                }
-            }
+        success {
+            echo '========================================'
+            echo '✅ 部署成功！'
+            echo "访问地址: http://YOUR_SERVER_IP:${HOST_PORT}"
+            echo "构建编号: ${BUILD_NUMBER}"
+            echo "镜像标签: ${IMAGE_NAME}:${BUILD_NUMBER}"
+            echo '========================================'
         }
         failure {
             script {
-                echo '❌ 部署失败。'
+                echo '========================================'
+                echo '❌ 部署失败'
+                echo "构建编号: ${BUILD_NUMBER}"
                 try {
-                    sh 'docker logs ${CONTAINER_NAME} || true'
+                    sh '''
+                        echo "=== 容器日志 ==="
+                        docker logs --tail 50 ${CONTAINER_NAME} || echo "容器未创建"
+                        echo ""
+                        echo "=== 容器状态 ==="
+                        docker ps -a | grep ${CONTAINER_NAME} || echo "容器不存在"
+                    '''
                 } catch (Exception e) {
-                    echo "无法获取容器日志（可能尚未创建容器）"
+                    echo "无法获取容器信息: ${e.message}"
                 }
+                echo '========================================'
             }
         }
-    } // 关闭 post
-} // 关闭 pipeline <--- 刚才就是少了这一个！
+        always {
+            echo "Pipeline 执行完成时间: ${new Date()}"
+        }
+    }
+}

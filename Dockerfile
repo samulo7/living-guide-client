@@ -1,28 +1,37 @@
-# 构建阶段
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# 复制 package.json
-COPY package.json ./
-
-# 安装依赖
-RUN npm install --registry=https://registry.npmmirror.com
-
-# 复制所有文件
-COPY . .
-
-# 构建 H5
-RUN npm run build:h5
-
-# 生产阶段
 FROM nginx:alpine
 
-# 复制构建产物
-COPY --from=builder /app/dist/build/h5 /usr/share/nginx/html
+# 复制所有项目文件到 nginx html 目录
+COPY . /usr/share/nginx/html
 
-# 复制 nginx 配置
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 删除不需要的文件
+RUN rm -f /usr/share/nginx/html/Dockerfile \
+          /usr/share/nginx/html/Jenkinsfile \
+          /usr/share/nginx/html/nginx.conf \
+          /usr/share/nginx/html/.gitignore \
+          /usr/share/nginx/html/.git
+
+# 创建基础的 nginx 配置
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html index.htm; \
+    \
+    # 支持前端路由 \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    \
+    # 静态资源缓存 \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$ { \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    \
+    # Gzip 压缩 \
+    gzip on; \
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml; \
+}' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

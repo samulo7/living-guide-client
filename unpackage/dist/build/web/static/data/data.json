@@ -1,0 +1,567 @@
+{
+  "version": 1769251782,
+  "update_date": "2026.01",
+  "total": 16,
+  "items": [
+    {
+      "id": "1",
+      "city": "鹤岗市",
+      "district": "兴安区、东山区",
+      "title": "鹤岗市 · 兴安区、东山区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": true,
+      "price_rent": 100,
+      "price_buy": "约2W/套",
+      "tags": [
+        "空城(人少)",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 47.338571,
+        "lng": 130.317151
+      },
+      "detail": {
+        "guru_comment": "网上的话题比较高，人气较足",
+        "climate_info": "一年有一半都是大冷天，暖暖冷，最低零下三四十多",
+        "cons": "冬天供暖费较高，老旧小区水压不稳",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "2",
+      "city": "双鸭山",
+      "district": "尖山区、集贤县",
+      "title": "双鸭山 · 尖山区、集贤县",
+      "cover_image": "/static/covers/shuangyashan.png",
+      "is_verified": false,
+      "price_rent": 450,
+      "price_buy": "约2.5W/套",
+      "tags": [
+        "空城(人少)",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 46.728448, 
+        "lng": 131.141452
+      },
+      "detail": {
+        "guru_comment": "相对来说交通枢纽，去俄罗斯的跳板之一",
+        "climate_info": "冬天长而且比较冷还干，夏天比较短，下雨不多",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "3",
+      "city": "伊春市",
+      "district": "铁力区",
+      "title": "伊春市 · 铁力区",
+      "cover_image": "/static/covers/yichun.png",
+      "is_verified": true,
+      "price_rent": 500,
+      "price_buy": "约9W/套",
+      "tags": [
+        "空城(人少)",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "没有",
+      "has_hospital_class_a": false,
+      "location": {
+        "lat": 46.986604,
+        "lng": 128.032554
+      },
+      "detail": {
+        "guru_comment": "有机场，说来就来是说走就走",
+        "climate_info": "夏天可以来避暑，超级凉快，天然氧，肺都能唤醒了",
+        "cons": "",
+        "medical_desc": "没有",
+        "transport_desc": "飞机,高铁在建"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "4",
+      "city": "大庆市",
+      "district": "红岗区",
+      "title": "大庆市 · 红岗区",
+      "cover_image": "/static/covers/daqing.png",
+      "is_verified": false,
+      "price_rent": 300,
+      "price_buy": "约2W/套",
+      "tags": [
+        "旅游度假区",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 46.398567,
+        "lng": 124.891041
+      },
+      "detail": {
+        "guru_comment": "博物馆多，有人文历史",
+        "climate_info": "湿地多，湖泊也多，但雨天不多，可以不用吸雾霾了",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "5",
+      "city": "七台河市",
+      "district": "桃山区、新兴区",
+      "title": "七台河市 · 桃山区、新兴区",
+      "cover_image": "/static/covers/qitaihe.png",
+      "is_verified": true,
+      "price_rent": 500,
+      "price_buy": "约3.5W/套",
+      "tags": [
+        "空城(人少)",
+        "河景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 45.816579,
+        "lng": 130.93226
+      },
+      "detail": {
+        "guru_comment": "北国园林风光独具特色",
+        "climate_info": "冬天平均温度和哈尔滨差不多，在零下20度左右",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "6",
+      "city": "齐齐哈尔",
+      "district": "富拉尔基区",
+      "title": "齐齐哈尔 · 富拉尔基区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 400,
+      "price_buy": "约3.5W/套",
+      "tags": [
+        "老城",
+        "山景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 47.20873,
+        "lng": 123.628926
+      },
+      "detail": {
+        "guru_comment": "丹顶鹤的老家，配上手风琴",
+        "climate_info": "多，甚至是万里无云，但风很大，时不时的出现4-5级大风是很正常的，贼特爱",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "7",
+      "city": "牡丹江市",
+      "district": "阳明区",
+      "title": "牡丹江市 · 阳明区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 240,
+      "price_buy": "约1.8W/套",
+      "tags": [
+        "老城",
+        "河景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 44.595851,
+        "lng": 129.635836
+      },
+      "detail": {
+        "guru_comment": "通往俄罗斯的交通枢纽之一，出国方便",
+        "climate_info": "一座雪城，算是东北最有诗意的城市，雪景非常纯净了",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "8",
+      "city": "黑河市",
+      "district": "爱辉区",
+      "title": "黑河市 · 爱辉区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 330,
+      "price_buy": "约3.6W/套",
+      "tags": [
+        "十分特别",
+        "河景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 50.252361,
+        "lng": 127.500703
+      },
+      "detail": {
+        "guru_comment": "对面就是俄罗斯，一脚就能出门",
+        "climate_info": "平均气温在2℃左右，寒冷天气有七个月，从十一就进入冬天了",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "9",
+      "city": "绥化",
+      "district": "安达城区、北林区",
+      "title": "绥化 · 安达城区、北林区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 200,
+      "price_buy": "约3.5W/套",
+      "tags": [
+        "老城",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 46.638114,
+        "lng": 126.984995
+      },
+      "detail": {
+        "guru_comment": "大把的黑土地，不管什么时候吃喝不用愁",
+        "climate_info": "夏天两个月左右，大部分是零下3度，雨水也不多",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "飞机,高铁在建"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "10",
+      "city": "大兴安岭地区",
+      "district": "加格达奇区",
+      "title": "大兴安岭地区 · 加格达奇区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 3000,
+      "price_buy": "约5W/套",
+      "tags": [
+        "空城(人少)",
+        "山景",
+        "很难评"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 50.408822,
+        "lng": 124.139742
+      },
+      "detail": {
+        "guru_comment": "cmm，林子大，空气相当好",
+        "climate_info": "属于高寒禁区，夏天只有两个月，运气好的话可以看到北极光",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "11",
+      "city": "佳木斯",
+      "district": "东风区、郊区、前进区",
+      "title": "佳木斯 · 东风区、郊区、前进区",
+      "cover_image": "/static/covers/jiamusi.png",
+      "is_verified": false,
+      "price_rent": 270,
+      "price_buy": "约3.2W/套",
+      "tags": [
+        "老城",
+        "河景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 46.81405,
+        "lng": 130.375254
+      },
+      "detail": {
+        "guru_comment": "粮食产地，适合隐居",
+        "climate_info": "是最早可以看到太阳的地方，年平均气温在3℃",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "12",
+      "city": "鸡西市",
+      "district": "恒山区、鸡冠城区",
+      "title": "鸡西市 · 恒山区、鸡冠城区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 300,
+      "price_buy": "约3.5W/套",
+      "tags": [
+        "老城",
+        "山景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 45.303892,
+        "lng": 130.981342
+      },
+      "detail": {
+        "guru_comment": "因煤炭而起，城市复古",
+        "climate_info": "想感受一下中围冰岛的，可以来这里，冬天的冰湖不输冰岛",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "13",
+      "city": "松原",
+      "district": "扶余区、宁江区",
+      "title": "松原 · 扶余区、宁江区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": false,
+      "price_rent": 300,
+      "price_buy": "约5.5W/套",
+      "tags": [
+        "老城",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 45.209435,
+        "lng": 124.875965
+      },
+      "detail": {
+        "guru_comment": "查干湖美得很",
+        "climate_info": "就像是冬天，雪也是比较少的，很冷也很干巴巴",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "14",
+      "city": "四平",
+      "district": "铁东区、铁西区",
+      "title": "四平 · 铁东区、铁西区",
+      "cover_image": "/static/covers/siping.png",
+      "is_verified": false,
+      "price_rent": 200,
+      "price_buy": "约4.8W/套",
+      "tags": [
+        "老城",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 43.146288,
+        "lng": 124.345994
+      },
+      "detail": {
+        "guru_comment": "有二龙湖浩哥",
+        "climate_info": "不是刮风就是下雨的，想看瑞士风景的可以来这玩一玩",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "15",
+      "city": "延边朝鲜族自治州",
+      "district": "珲春市",
+      "title": "延边朝鲜族自治州 · 珲春市",
+      "cover_image": "/static/covers/yanbian.png",
+      "is_verified": false,
+      "price_rent": 178,
+      "price_buy": "约5W/套",
+      "tags": [
+        "十分特别",
+        "雪景",
+        "老少都适合"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 42.862551,
+        "lng": 130.365829
+      },
+      "detail": {
+        "guru_comment": "石锅拌饭是我的哦",
+        "climate_info": "东临日本海，西北部有长白山，比东北其他地方贵得劲",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车,飞机"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    },
+    {
+      "id": "16",
+      "city": "辽源",
+      "district": "西安城区、龙山城区",
+      "title": "辽源 · 西安城区、龙山城区",
+      "cover_image": "/static/covers/hegang.png",
+      "is_verified": true,
+      "price_rent": 333,
+      "price_buy": "约4W/套",
+      "tags": [
+        "空城(人少)",
+        "雪景",
+        "短暂居住的年轻人"
+      ],
+      "medical": "三甲医院",
+      "has_hospital_class_a": true,
+      "location": {
+        "lat": 42.902194,
+        "lng": 125.13703
+      },
+      "detail": {
+        "guru_comment": "满族重要发祥地之一",
+        "climate_info": "丘陵比较多，算是夹在山水天之间，早晚气温大差不差",
+        "cons": "",
+        "medical_desc": "三甲医院",
+        "transport_desc": "高铁/动车"
+      },
+      "radar_data": {
+        "cost": 5,
+        "medical": 3,
+        "transport": 3,
+        "climate": 4,
+        "fun": 3
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+export interface RoomLocation {
+  lat: number
+  lng: number
+}
+
+export interface SubletItem {
+  id: string
+  city_name: string
+  district: string
+  community: string
+  title: string
+  price: number
+  price_unit: string
+  min_duration: string
+  tags: string[]
+  cover_image: string
+  owner_avatar: string
+  owner_name: string
+  contact_wechat: string
+  is_verified: boolean
+  location: RoomLocation
+  facilities: string[]
+}
+
+export interface CityOption {
+  value: string
+  label: string
+}

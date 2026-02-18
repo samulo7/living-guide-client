@@ -1,0 +1,71 @@
+import { UserCenterData, UserProfile } from '../types/user'
+import { loadJobs } from './useJobs'
+import { loadSublets } from './useSublets'
+import { loadActivities } from './useSocial'
+
+const USER_DATA_PATH = '/static/data/user.json'
+
+function countMatchedIds(refIds: string[], dataIds: string[], fallback: number): number {
+  if (refIds.length == 0) {
+    return fallback
+  }
+  return refIds.filter((id) => dataIds.includes(id)).length
+}
+
+export async function loadUserProfile(): Promise<UserProfile> {
+  const url = `${USER_DATA_PATH}?t=${Date.now()}`
+  return new Promise<UserProfile>((resolve, reject) => {
+    uni.request({
+      url: url,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject(`加载 user 失败: ${res.statusCode}`)
+          return
+        }
+        try {
+          const str = JSON.stringify(res.data)
+          const data = JSON.parse<UserProfile>(str) as UserProfile | null
+          if (data != null) {
+            resolve(data)
+          } else {
+            reject('user 数据为空')
+          }
+        } catch (error) {
+          reject(`user 数据解析失败: ${error}`)
+        }
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+export async function loadUserCenterData(): Promise<UserCenterData> {
+  const profile = await loadUserProfile()
+  const fallback = profile.stats
+
+  try {
+    const [jobs, sublets, activities] = await Promise.all([loadJobs(), loadSublets(), loadActivities()])
+    const appliedJobs = countMatchedIds(profile.applied_job_ids, jobs.map((item) => item.id), fallback.applied_jobs)
+    const postedRooms = countMatchedIds(profile.posted_room_ids, sublets.map((item) => item.id), fallback.posted_rooms)
+    const joinedParties = countMatchedIds(profile.joined_activity_ids, activities.map((item) => item.id), fallback.joined_parties)
+
+    return {
+      profile,
+      dashboard: {
+        appliedJobs,
+        postedRooms,
+        joinedParties
+      }
+    } as UserCenterData
+  } catch (error) {
+    return {
+      profile,
+      dashboard: {
+        appliedJobs: fallback.applied_jobs,
+        postedRooms: fallback.posted_rooms,
+        joinedParties: fallback.joined_parties
+      }
+    } as UserCenterData
+  }
+}

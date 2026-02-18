@@ -1,0 +1,43 @@
+export interface UserStats {
+  applied_jobs: number
+  posted_rooms: number
+  joined_parties: number
+}
+
+export interface UserWallet {
+  balance: number
+  month_income: number
+}
+
+export interface UserProfile {
+  id: string
+  nickname: string
+  avatar: string
+  current_city: string
+  nomad_days: number
+  tags: string[]
+  stats: UserStats
+  wallet: UserWallet
+  applied_job_ids: string[]
+  posted_room_ids: string[]
+  joined_activity_ids: string[]
+  resume_completion: number
+  favorite_cities: string[]
+}
+
+export interface UserDashboard {
+  appliedJobs: number
+  postedRooms: number
+  joinedParties: number
+}
+
+export interface UserCenterData {
+  profile: UserProfile
+  dashboard: UserDashboard
+}
+
+export interface UserMenuItem {
+  id: string
+  title: string
+  desc: string
+}

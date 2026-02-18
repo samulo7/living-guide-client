@@ -1,0 +1,22 @@
+{
+  "id": "u_self_001",
+  "nickname": "流浪诗人",
+  "avatar": "/static/logo.png",
+  "current_city": "鹤岗",
+  "nomad_days": 45,
+  "tags": ["文案高手", "省钱鬼才", "低欲望生活"],
+  "stats": {
+    "applied_jobs": 3,
+    "posted_rooms": 1,
+    "joined_parties": 2
+  },
+  "wallet": {
+    "balance": 2450.0,
+    "month_income": 3200
+  },
+  "applied_job_ids": ["job_001", "job_002", "job_003"],
+  "posted_room_ids": ["room_001"],
+  "joined_activity_ids": ["act_001", "act_003"],
+  "resume_completion": 85,
+  "favorite_cities": ["鹤岗", "伊春", "大理"]
+}

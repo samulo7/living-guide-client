@@ -19,17 +19,22 @@
       <text class="tab-icon">📡</text>
       <text :class="['tab-label', active === 'social' ? 'social-active' : 'normal']">搭子</text>
     </view>
+
+    <view class="tab-item" @click="switchTab('user')">
+      <text class="tab-icon">👤</text>
+      <text :class="['tab-label', active === 'user' ? 'user-active' : 'normal']">我的</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
 interface Props {
-  active: 'guide' | 'gigs' | 'sublet' | 'social'
+  active: 'guide' | 'gigs' | 'sublet' | 'social' | 'user'
 }
 
 const props = defineProps<Props>()
 
-const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social') => {
+const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social' | 'user') => {
   if (tab == props.active) {
     return
   }
@@ -39,8 +44,10 @@ const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social') => {
     uni.reLaunch({ url: '/pages/gigs/gigs' })
   } else if (tab == 'sublet') {
     uni.reLaunch({ url: '/pages/sublet/sublet' })
-  } else {
+  } else if (tab == 'social') {
     uni.reLaunch({ url: '/pages/social/social' })
+  } else {
+    uni.reLaunch({ url: '/pages/user/user' })
   }
 }
 </script>
@@ -57,12 +64,14 @@ const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social') => {
   border-top: 1px solid #f0f0f0;
   flex-direction: row;
   align-items: center;
-  justify-content: space-around;
+  justify-content: space-between;
   z-index: 99;
 }
 
 .tab-item {
   flex: 1;
+  max-width: 20%;
+  min-width: 0;
   align-items: center;
   justify-content: center;
 }
@@ -95,5 +104,9 @@ const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social') => {
 
 .social-active {
   color: #722ed1;
+}
+
+.user-active {
+  color: #333333;
 }
 </style>

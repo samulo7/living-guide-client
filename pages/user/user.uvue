@@ -1,0 +1,383 @@
+<template>
+  <view class="page">
+    <scroll-view class="content" direction="vertical">
+      <view v-if="loading" class="state-box">
+        <text class="state-text">正在整理你的旅居档案...</text>
+      </view>
+
+      <view v-else>
+        <view class="identity-card">
+          <image class="identity-bg" src="/static/images/3.jpg" mode="aspectFill"></image>
+          <view class="identity-mask"></view>
+          <view class="identity-main">
+            <image class="avatar" :src="avatar" mode="aspectFill"></image>
+            <text class="nickname">{{ nickname }}</text>
+            <text class="nomad-pill">已在{{ currentCity }}旅居 {{ nomadDays }} 天</text>
+
+            <view class="tag-row">
+              <text v-for="tag in displayTags" :key="tag" class="tag-pill">{{ tag }}</text>
+            </view>
+
+            <view class="wallet-box">
+              <view class="wallet-col">
+                <text class="wallet-label">钱包余额</text>
+                <text class="wallet-value">¥{{ walletBalanceText }}</text>
+              </view>
+              <view class="wallet-divider"></view>
+              <view class="wallet-col">
+                <text class="wallet-label">本月收入</text>
+                <text class="wallet-value">¥{{ walletIncomeText }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view class="panel">
+          <text class="panel-title">旅居仪表盘</text>
+          <view class="dashboard-grid">
+            <view v-for="card in dashboardCards" :key="card.id" class="metric-card">
+              <text class="metric-icon">{{ card.icon }}</text>
+              <text class="metric-value">{{ card.value }}</text>
+              <text class="metric-label">{{ card.title }}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="panel">
+          <text class="panel-title">功能列表</text>
+          <view v-for="item in menuItems" :key="item.id" class="menu-row" @click="onMenuClick(item.id)">
+            <view class="menu-left">
+              <text class="menu-title">{{ item.title }}</text>
+              <text class="menu-desc">{{ item.desc }}</text>
+            </view>
+            <text class="menu-arrow">›</text>
+          </view>
+
+          <view class="logout-btn" hover-class="logout-btn-active" @click="onLogout">
+            <text class="logout-text">退出登录</text>
+          </view>
+        </view>
+
+        <view style="height: 100px;"></view>
+      </view>
+    </scroll-view>
+
+    <tab-bar active="user" />
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import TabBar from '../../components/TabBar.uvue'
+import type { UserCenterData, UserMenuItem } from '../../types/user'
+import { loadUserCenterData } from '../../utils/useUser'
+
+const loading = ref(true)
+const centerData = ref<UserCenterData | null>(null)
+
+const profile = computed(() => centerData.value?.profile ?? null)
+const dashboard = computed(() => centerData.value?.dashboard ?? {
+  appliedJobs: 0,
+  postedRooms: 0,
+  joinedParties: 0
+})
+
+const nickname = computed(() => profile.value?.nickname ?? '数字游民')
+const avatar = computed(() => profile.value?.avatar ?? '/static/logo.png')
+const currentCity = computed(() => profile.value?.current_city ?? '--')
+const nomadDays = computed(() => profile.value?.nomad_days ?? 0)
+const displayTags = computed(() => profile.value?.tags ?? [])
+
+const dashboardCards = computed(() => [
+  { id: 'gigs', icon: '💼', title: '搞钱', value: dashboard.value.appliedJobs },
+  { id: 'sublet', icon: '🏠', title: '安家', value: dashboard.value.postedRooms },
+  { id: 'social', icon: '💜', title: '搭子', value: dashboard.value.joinedParties }
+])
+
+const menuItems = computed<UserMenuItem[]>(() => {
+  const resumePercent = profile.value?.resume_completion ?? 85
+  const favorites = profile.value?.favorite_cities ?? []
+
+  return [
+    { id: 'resume', title: '我的简历', desc: `完整度 ${resumePercent}%` },
+    { id: 'favorites', title: '收藏城市', desc: favorites.length == 0 ? '暂无收藏' : favorites.join(' · ') },
+    { id: 'settings', title: '系统设置', desc: '通知、隐私、账号安全' }
+  ]
+})
+
+function formatCurrency(value: number): string {
+  const fixed = value.toFixed(2)
+  if (fixed.endsWith('.00')) {
+    return fixed.slice(0, fixed.length - 3)
+  }
+  return fixed
+}
+
+const walletBalanceText = computed(() => formatCurrency(profile.value?.wallet.balance ?? 0))
+const walletIncomeText = computed(() => formatCurrency(profile.value?.wallet.month_income ?? 0))
+
+const onMenuClick = (id: string) => {
+  if (id == 'resume') {
+    uni.showToast({ title: '简历模块开发中', icon: 'none' })
+  } else if (id == 'favorites') {
+    uni.showToast({ title: '收藏城市功能开发中', icon: 'none' })
+  } else {
+    uni.showToast({ title: '系统设置开发中', icon: 'none' })
+  }
+}
+
+const onLogout = () => {
+  uni.showToast({ title: '已退出登录（模拟）', icon: 'none' })
+}
+
+const initData = async () => {
+  try {
+    centerData.value = await loadUserCenterData()
+  } catch (error) {
+    uni.showToast({ title: '用户数据加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  initData()
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-image: linear-gradient(180deg, #edf0f4 0%, #f8f9fb 100%);
+}
+
+.content {
+  flex: 1;
+  padding: 14px 14px 0;
+}
+
+.state-box {
+  padding-top: 80px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+.identity-card {
+  position: relative;
+  min-height: 300px;
+  border-radius: 18px;
+  overflow: hidden;
+  background-color: #1f252f;
+}
+
+.identity-bg {
+  width: 100%;
+  height: 300px;
+}
+
+.identity-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-image: linear-gradient(180deg, rgba(13, 18, 24, 0.15) 0%, rgba(13, 18, 24, 0.85) 100%);
+}
+
+.identity-main {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding: 22px 18px 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  border-width: 2px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.nickname {
+  margin-top: 10px;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.nomad-pill {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  color: #fefefe;
+  font-size: 12px;
+  background-color: rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
+.tag-row {
+  margin-top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tag-pill {
+  margin: 0 4px 6px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  color: #e8edf6;
+  font-size: 11px;
+  background-color: rgba(13, 18, 24, 0.35);
+}
+
+.wallet-box {
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 12px;
+  padding: 10px 8px;
+  background-color: rgba(255, 255, 255, 0.18);
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.24);
+  flex-direction: row;
+  align-items: center;
+}
+
+.wallet-col {
+  flex: 1;
+  align-items: center;
+}
+
+.wallet-label {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11px;
+}
+
+.wallet-value {
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.wallet-divider {
+  width: 1px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.panel {
+  margin-top: 14px;
+  padding: 16px 14px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #eceff3;
+}
+
+.panel-title {
+  font-size: 15px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.dashboard-grid {
+  margin-top: 12px;
+  flex-direction: row;
+}
+
+.metric-card {
+  flex: 1;
+  align-items: center;
+  padding: 12px 0;
+  border-radius: 12px;
+  background-color: #f6f7f9;
+  margin-right: 8px;
+}
+
+.metric-card:last-child {
+  margin-right: 0;
+}
+
+.metric-icon {
+  font-size: 18px;
+}
+
+.metric-value {
+  margin-top: 5px;
+  font-size: 20px;
+  color: #333333;
+  font-weight: 900;
+}
+
+.metric-label {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.menu-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 2px;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: #f1f3f5;
+}
+
+.menu-left {
+  flex: 1;
+}
+
+.menu-title {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.menu-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.menu-arrow {
+  color: #a3a3a3;
+  font-size: 20px;
+}
+
+.logout-btn {
+  margin-top: 14px;
+  height: 44px;
+  border-radius: 22px;
+  justify-content: center;
+  align-items: center;
+  background-color: #333333;
+}
+
+.logout-btn-active {
+  opacity: 0.9;
+  transform: scale(0.98);
+}
+
+.logout-text {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+</style>

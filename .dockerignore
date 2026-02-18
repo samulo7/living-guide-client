@@ -1,0 +1,10 @@
+.git
+.gitignore
+Dockerfile
+Jenkinsfile
+nginx.conf
+README.md
+*.md
+.vscode
+.idea
+node_modules

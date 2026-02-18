@@ -1,0 +1,25 @@
+{
+    "name": "living-guide-client",
+    "version": "1.0.0",
+    "description": "Living Guide uni-app project",
+    "scripts": {
+      "dev:h5": "uni",
+      "build:h5": "uni build"
+    },
+    "dependencies": {
+      "@dcloudio/uni-app": "3.0.0-4020420240930001",
+      "@dcloudio/uni-app-plus": "3.0.0-4020420240930001",
+      "@dcloudio/uni-h5": "3.0.0-4020420240930001",
+      "@dcloudio/uni-mp-alipay": "3.0.0-4020420240930001",
+      "@dcloudio/uni-mp-baidu": "3.0.0-4020420240930001",
+      "@dcloudio/uni-mp-weixin": "3.0.0-4020420240930001",
+      "vue": "^3.4.21"
+    },
+    "devDependencies": {
+      "@dcloudio/types": "^3.4.8",
+      "@dcloudio/uni-cli-shared": "3.0.0-4020420240930001",
+      "@dcloudio/uni-stacktracey": "3.0.0-4020420240930001",
+      "@dcloudio/vite-plugin-uni": "3.0.0-4020420240930001",
+      "vite": "5.2.8"
+    }
+  }

@@ -139,7 +139,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { loadCityData } from '../../utils/dataLoader'
+import { loadCityData } from '../../utils/dataLoader.ts'
 import type { CityItem } from '../../types/city'
 import { onLoad } from '@dcloudio/uni-app'
 

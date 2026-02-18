@@ -1,0 +1,120 @@
+import { JobItem, SurvivalCity, SurvivalCompareItem } from '../types/job'
+
+const JOB_DATA_PATH = '/static/data/jobs.json'
+
+const SURVIVAL_CITIES: SurvivalCity[] = [
+  { id: 'hegang', name: '鹤岗', rent: 333.34 },
+  { id: 'dali', name: '大理', rent: 833.34 },
+  { id: 'shanghai', name: '上海', rent: 2000 }
+]
+
+export async function loadJobs(): Promise<JobItem[]> {
+  const url = `${JOB_DATA_PATH}?t=${Date.now()}`
+  return new Promise<JobItem[]>((resolve, reject) => {
+    uni.request({
+      url: url,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject(`加载 jobs 失败: ${res.statusCode}`)
+          return
+        }
+
+        try {
+          const str = JSON.stringify(res.data)
+          const arr = JSON.parse<JobItem[]>(str) as JobItem[] | null
+          if (arr != null) {
+            resolve(arr)
+          } else {
+            reject('jobs 数据为空')
+          }
+        } catch (error) {
+          reject(`jobs 解析失败: ${error}`)
+        }
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+export function getAllJobTags(jobs: JobItem[]): string[] {
+  const result: string[] = []
+  jobs.forEach((item) => {
+    item.tags.forEach((tag) => {
+      if (!result.includes(tag)) {
+        result.push(tag)
+      }
+    })
+  })
+  return result
+}
+
+export function filterJobsByTag(jobs: JobItem[], tag: string): JobItem[] {
+  if (tag == 'all') {
+    return jobs
+  }
+  return jobs.filter((item) => item.tags.includes(tag))
+}
+
+function toMonthlyIncome(job: JobItem): number {
+  const unit = job.salary_unit
+  if (unit.includes('/月')) {
+    return job.salary
+  }
+  if (unit.includes('/天')) {
+    return job.salary * 22
+  }
+  if (unit.includes('/篇')) {
+    return job.salary * 15
+  }
+  if (unit.includes('/小时')) {
+    return job.salary * 160
+  }
+  return job.salary
+}
+
+export function calcSurvivalMonths(job: JobItem, monthlyLivingCost: number): number {
+  if (monthlyLivingCost <= 0) {
+    return 0
+  }
+  return toMonthlyIncome(job) / monthlyLivingCost
+}
+
+export function calcCoveragePercent(job: JobItem, monthlyLivingCost: number): number {
+  return calcSurvivalMonths(job, monthlyLivingCost) * 100
+}
+
+export function formatSalary(job: JobItem): string {
+  const unit = job.salary_unit.replace('元', '')
+  return `¥${job.salary}${unit}`
+}
+
+export function getSurvivalCityById(id: string): SurvivalCity {
+  const found = SURVIVAL_CITIES.find((item) => item.id == id)
+  if (found != null) {
+    return found
+  }
+  return SURVIVAL_CITIES[0]
+}
+
+export function getSurvivalCities(): SurvivalCity[] {
+  return SURVIVAL_CITIES
+}
+
+export function calcCityLivingCost(city: SurvivalCity): number {
+  return city.rent * 3
+}
+
+export function buildSurvivalCompare(job: JobItem): SurvivalCompareItem[] {
+  return SURVIVAL_CITIES.map((city) => {
+    const livingCost = calcCityLivingCost(city)
+    const months = calcSurvivalMonths(job, livingCost)
+    return {
+      id: city.id,
+      name: city.name,
+      months: months,
+      living_cost: livingCost,
+      coverage_percent: months * 100
+    } as SurvivalCompareItem
+  })
+}

@@ -59,13 +59,17 @@
             :data="item"
             @click="goToDetail(item.id)"
           />
+          <view style="height: 96px;"></view>
         </scroll-view>
+
+    <tab-bar active="guide" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import CityCard from '../../components/CityCard.uvue'
+import TabBar from '../../components/TabBar.uvue'
 import { loadCityData } from '../../utils/dataLoader'
 import type { CityItem } from '../../types/city'
 

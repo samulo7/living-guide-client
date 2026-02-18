@@ -21,6 +21,20 @@
 		      "style": {
 		        "navigationBarTitleText": "地图详情"
 		      }
+		    },
+		{
+			"path": "pages/gigs/gigs",
+			"style": {
+				"navigationBarTitleText": "旅居搞钱",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/gigs/detail",
+			"style": {
+				"navigationBarTitleText": "职位详情",
+				"navigationStyle": "custom"
+			}
 		    }
 	],
 	"globalStyle": {

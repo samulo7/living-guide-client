@@ -1,0 +1,25 @@
+export interface JobItem {
+  id: string
+  title: string
+  salary: number
+  salary_unit: string
+  settlement: string
+  tags: string[]
+  contact: string
+  survival_city_ref: string
+  is_scam_warning: boolean
+}
+
+export interface SurvivalCity {
+  id: string
+  name: string
+  rent: number
+}
+
+export interface SurvivalCompareItem {
+  id: string
+  name: string
+  months: number
+  living_cost: number
+  coverage_percent: number
+}

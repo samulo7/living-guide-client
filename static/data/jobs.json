@@ -1,0 +1,46 @@
+[
+  {
+    "id": "job_001",
+    "title": "远程小红书文案",
+    "salary": 200,
+    "salary_unit": "元/篇",
+    "settlement": "日结",
+    "tags": ["文案", "灵活"],
+    "contact": "微信: hr_user_01",
+    "survival_city_ref": "hegang",
+    "is_scam_warning": false
+  },
+  {
+    "id": "job_002",
+    "title": "兼职视频剪辑",
+    "salary": 4000,
+    "salary_unit": "元/月",
+    "settlement": "月结",
+    "tags": ["剪辑", "长期"],
+    "contact": "邮箱: job@video.com",
+    "survival_city_ref": "dali",
+    "is_scam_warning": false
+  },
+  {
+    "id": "job_003",
+    "title": "线上客服",
+    "salary": 180,
+    "salary_unit": "元/天",
+    "settlement": "周结",
+    "tags": ["客服", "稳定"],
+    "contact": "微信: remote_service_88",
+    "survival_city_ref": "hegang",
+    "is_scam_warning": false
+  },
+  {
+    "id": "job_004",
+    "title": "短视频脚本兼职",
+    "salary": 3000,
+    "salary_unit": "元/月",
+    "settlement": "月结",
+    "tags": ["脚本", "远程"],
+    "contact": "邮箱: script-job@studio.com",
+    "survival_city_ref": "shanghai",
+    "is_scam_warning": false
+  }
+]

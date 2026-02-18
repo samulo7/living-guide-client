@@ -1,0 +1,161 @@
+<template>
+  <view class="container">
+    <view class="header">
+      <text class="title">旅居搞钱</text>
+      <text class="subtitle">远程兼职机会 + 生存指数</text>
+    </view>
+
+    <scroll-view class="tag-scroll" direction="horizontal" :show-scrollbar="false">
+      <view class="tag-wrap">
+        <view
+          v-for="tag in tagList"
+          :key="tag"
+          class="filter-tag"
+          :class="{ active: currentTag === tag }"
+          @click="currentTag = tag"
+        >
+          <text :class="['filter-text', currentTag === tag ? 'active-text' : '']">{{ formatTag(tag) }}</text>
+        </view>
+        <view style="width: 20px; height: 10px;"></view>
+      </view>
+    </scroll-view>
+
+    <scroll-view class="list" direction="vertical">
+      <view v-if="loading" class="state-box">
+        <text class="state-text">正在加载职位...</text>
+      </view>
+
+      <view v-else-if="filteredJobs.length === 0" class="state-box">
+        <text class="state-text">当前筛选下暂无职位</text>
+      </view>
+
+      <view v-else>
+        <job-card
+          v-for="job in filteredJobs"
+          :key="job.id"
+          :data="job"
+          :city-name="getBaseCity(job).name"
+          :coverage-percent="getCoverage(job)"
+          @click="goToDetail(job.id)"
+        />
+      </view>
+      <view style="height: 96px;"></view>
+    </scroll-view>
+
+    <tab-bar active="gigs" />
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import JobCard from '../../components/JobCard.uvue'
+import TabBar from '../../components/TabBar.uvue'
+import type { JobItem } from '../../types/job'
+import { loadJobs, getAllJobTags, filterJobsByTag, getSurvivalCityById, calcCoveragePercent, calcCityLivingCost } from '../../utils/useJobs'
+
+const jobs = ref<JobItem[]>([])
+const loading = ref(true)
+const currentTag = ref('all')
+
+const tagList = computed(() => ['all', ...getAllJobTags(jobs.value)])
+const filteredJobs = computed(() => filterJobsByTag(jobs.value, currentTag.value))
+
+const formatTag = (tag: string): string => (tag == 'all' ? '全部' : tag)
+const getBaseCity = (job: JobItem) => getSurvivalCityById(job.survival_city_ref)
+const getCoverage = (job: JobItem): number => {
+  const city = getBaseCity(job)
+  return calcCoveragePercent(job, calcCityLivingCost(city))
+}
+
+const goToDetail = (id: string) => {
+  uni.navigateTo({ url: `/pages/gigs/detail?id=${id}` })
+}
+
+onMounted(async () => {
+  try {
+    jobs.value = await loadJobs()
+  } catch (error) {
+    uni.showToast({ title: '职位数据加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<style scoped>
+.container {
+  height: 100vh;
+  background-color: #fffaf0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 50px 18px 14px;
+  background-image: linear-gradient(135deg, #ffd666 0%, #faad14 100%);
+}
+
+.title {
+  font-size: 24px;
+  color: #613400;
+  font-weight: 900;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: rgba(97, 52, 0, 0.85);
+  margin-top: 4px;
+}
+
+.tag-scroll {
+  width: 100%;
+  height: 52px;
+  background-color: #ffffff;
+}
+
+.tag-wrap {
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 16px;
+}
+
+.filter-tag {
+  padding: 6px 14px;
+  border-radius: 16px;
+  background-color: #f5f5f5;
+  margin-right: 10px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: transparent;
+}
+
+.filter-text {
+  font-size: 13px;
+  color: #595959;
+}
+
+.active {
+  background-color: #fff7e6;
+  border-color: #faad14;
+}
+
+.active-text {
+  color: #ad6800;
+  font-weight: 700;
+}
+
+.list {
+  flex: 1;
+  padding: 10px 16px 0;
+}
+
+.state-box {
+  padding-top: 60px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+</style>

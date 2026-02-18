@@ -1,0 +1,134 @@
+<template>
+  <view class="job-card" hover-class="job-card-active" @click="emit('click')">
+    <view class="card-main">
+      <view class="left">
+        <text class="title">{{ data.title }}</text>
+        <view class="tags-row">
+          <view class="tag" v-for="(tag, index) in data.tags" :key="index">
+            <text class="tag-text">{{ tag }}</text>
+          </view>
+          <view class="tag settlement-tag">
+            <text class="settlement-text">{{ data.settlement }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="right">
+        <text class="salary">{{ salaryText }}</text>
+      </view>
+    </view>
+
+    <view class="survival-row">
+      <text class="fire">🔥</text>
+      <text class="survival-text">此收入约覆盖{{ cityName }} {{ safeCoverage }}% 生活费</text>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { JobItem } from '../types/job'
+import { formatSalary } from '../utils/useJobs'
+
+interface Props {
+  data: JobItem
+  cityName: string
+  coveragePercent: number
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{ click: [] }>()
+
+const salaryText = computed((): string => formatSalary(props.data))
+const safeCoverage = computed((): string => Math.max(0, props.coveragePercent).toFixed(0))
+</script>
+
+<style scoped>
+.job-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
+}
+
+.job-card-active {
+  opacity: 0.85;
+}
+
+.card-main {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.left {
+  flex: 1;
+  padding-right: 10px;
+}
+
+.title {
+  font-size: 16px;
+  color: #262626;
+  font-weight: 800;
+  lines: 1;
+}
+
+.tags-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.tag {
+  background-color: #f5f7fa;
+  border-radius: 10px;
+  padding: 3px 8px;
+  margin-right: 8px;
+  margin-bottom: 6px;
+}
+
+.tag-text {
+  font-size: 11px;
+  color: #5f6368;
+}
+
+.settlement-tag {
+  background-color: #fff7e6;
+}
+
+.settlement-text {
+  color: #d48806;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.right {
+  align-items: flex-end;
+}
+
+.salary {
+  font-size: 20px;
+  color: #fa8c16;
+  font-weight: 900;
+}
+
+.survival-row {
+  margin-top: 10px;
+  background-color: #fffbe6;
+  border-radius: 8px;
+  padding: 8px 10px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.fire {
+  font-size: 13px;
+  margin-right: 6px;
+}
+
+.survival-text {
+  font-size: 12px;
+  color: #ad6800;
+}
+</style>

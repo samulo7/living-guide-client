@@ -1,0 +1,83 @@
+<template>
+  <view class="tab-bar">
+    <view
+      class="tab-item"
+      @click="switchTab('guide')"
+    >
+      <text class="tab-icon">🧭</text>
+      <text :class="['tab-label', active === 'guide' ? 'guide-active' : 'normal']">指南</text>
+    </view>
+
+    <view
+      class="tab-item"
+      @click="switchTab('gigs')"
+    >
+      <text class="tab-icon">💼</text>
+      <text :class="['tab-label', active === 'gigs' ? 'gigs-active' : 'normal']">搞钱</text>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+interface Props {
+  active: 'guide' | 'gigs'
+}
+
+const props = defineProps<Props>()
+
+const switchTab = (tab: 'guide' | 'gigs') => {
+  if (tab == props.active) {
+    return
+  }
+  if (tab == 'guide') {
+    uni.reLaunch({ url: '/pages/index/index' })
+  } else {
+    uni.reLaunch({ url: '/pages/gigs/gigs' })
+  }
+}
+</script>
+
+<style scoped>
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 74px;
+  padding-bottom: 10px;
+  background-color: #ffffff;
+  border-top: 1px solid #f0f0f0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 99;
+}
+
+.tab-item {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.tab-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.normal {
+  color: #9aa0a6;
+}
+
+.guide-active {
+  color: #5c8d89;
+}
+
+.gigs-active {
+  color: #faad14;
+}
+</style>

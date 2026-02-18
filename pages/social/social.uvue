@@ -1,0 +1,326 @@
+<template>
+  <view class="page">
+    <view class="hero">
+      <text class="title">搭子雷达</text>
+      <text class="subtitle">轻社交，只搭子，不尬聊</text>
+    </view>
+
+    <view class="radar-panel">
+      <view class="radar-core">
+        <view class="ring ring-1"></view>
+        <view class="ring ring-2"></view>
+        <view class="ring ring-3"></view>
+        <view class="cross-line line-x"></view>
+        <view class="cross-line line-y"></view>
+        <view class="sweep" :class="scanRunning ? 'sweep-active' : 'sweep-stop'"></view>
+        <view class="center-dot"></view>
+      </view>
+      <text class="scan-text">{{ scanRunning ? '正在扫描附近搭子...' : '发现附近动态' }}</text>
+    </view>
+
+    <scroll-view class="feed" direction="vertical">
+      <view v-if="loading" class="state-box">
+        <text class="state-text">加载中...</text>
+      </view>
+
+      <view v-else-if="sortedActivities.length === 0" class="state-box">
+        <text class="state-text">附近暂时还没有新动态</text>
+      </view>
+
+      <view v-else>
+        <view
+          v-for="(item, index) in sortedActivities"
+          :key="item.id"
+          :class="['fade-item', index < visibleCount ? 'fade-show' : 'fade-hide']"
+        >
+          <activity-card :activity="item" @join="onJoin(item)" />
+        </view>
+      </view>
+      <view style="height: 100px;"></view>
+    </scroll-view>
+
+    <view class="fab" hover-class="fab-active" @click="onCreate">
+      <text class="fab-text">+</text>
+    </view>
+
+    <tab-bar active="social" />
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import ActivityCard from '../../components/ActivityCard.uvue'
+import TabBar from '../../components/TabBar.uvue'
+import type { ActivityItem } from '../../types/social'
+import { loadActivities, sortActivitiesByDistance } from '../../utils/useSocial'
+
+const activities = ref<ActivityItem[]>([])
+const loading = ref(true)
+const scanRunning = ref(true)
+const visibleCount = ref(0)
+const timerIds: number[] = []
+let revealStarted = false
+
+const sortedActivities = computed(() => sortActivitiesByDistance(activities.value))
+
+const addTimer = (handler: () => void, delay: number) => {
+  const id = setTimeout(handler, delay) as unknown as number
+  timerIds.push(id)
+}
+
+const tryReveal = () => {
+  if (loading.value || scanRunning.value || revealStarted) {
+    return
+  }
+  revealStarted = true
+  sortedActivities.value.forEach((_, index) => {
+    addTimer(() => {
+      visibleCount.value = index + 1
+    }, index * 120)
+  })
+}
+
+const startRadar = () => {
+  addTimer(() => {
+    scanRunning.value = false
+    tryReveal()
+  }, 2000)
+}
+
+const initData = async () => {
+  try {
+    activities.value = await loadActivities()
+  } catch (error) {
+    uni.showToast({ title: '动态加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
+    tryReveal()
+  }
+}
+
+const onJoin = (item: ActivityItem) => {
+  if (item.status == 'full') {
+    uni.showToast({ title: '该局已满', icon: 'none' })
+    return
+  }
+  uni.showToast({ title: '已发送申请，等待对方通过~', icon: 'none' })
+}
+
+const onCreate = () => {
+  const options = ['吃饭', '运动', '发呆', '游戏']
+  uni.showActionSheet({
+    itemList: options,
+    success: (res) => {
+      const choice = options[res.tapIndex] ?? '新活动'
+      uni.showToast({ title: `已发起${choice}局（模拟）`, icon: 'none' })
+    }
+  })
+}
+
+onMounted(() => {
+  startRadar()
+  initData()
+})
+
+onUnmounted(() => {
+  timerIds.forEach((id) => clearTimeout(id))
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f4f0ff;
+}
+
+.hero {
+  padding: 50px 18px 12px;
+  background-image: linear-gradient(135deg, #8f54ff 0%, #4f2e9e 100%);
+}
+
+.title {
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.radar-panel {
+  margin: 12px 16px 10px;
+  padding: 14px 12px 10px;
+  border-radius: 16px;
+  background-image: linear-gradient(180deg, #f7f2ff 0%, #efe6ff 100%);
+  border: 1px solid #e8d9ff;
+  align-items: center;
+}
+
+.radar-core {
+  width: 190px;
+  height: 190px;
+  border-radius: 95px;
+  background-color: rgba(114, 46, 209, 0.06);
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.ring {
+  position: absolute;
+  border-radius: 999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(114, 46, 209, 0.35);
+}
+
+.ring-1 {
+  width: 70px;
+  height: 70px;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+.ring-2 {
+  width: 120px;
+  height: 120px;
+  animation: pulse 2.1s ease-in-out infinite;
+}
+
+.ring-3 {
+  width: 170px;
+  height: 170px;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.cross-line {
+  position: absolute;
+  background-color: rgba(114, 46, 209, 0.15);
+}
+
+.line-x {
+  width: 170px;
+  height: 1px;
+}
+
+.line-y {
+  width: 1px;
+  height: 170px;
+}
+
+.sweep {
+  position: absolute;
+  width: 85px;
+  height: 2px;
+  left: 95px;
+  top: 95px;
+  transform-origin: 0 0;
+  background-image: linear-gradient(90deg, rgba(191, 152, 255, 0.3), rgba(114, 46, 209, 0.95));
+  box-shadow: 0 0 8px rgba(114, 46, 209, 0.7);
+}
+
+.sweep-active {
+  animation: sweep-rotate 2s linear 1;
+}
+
+.sweep-stop {
+  transform: rotate(35deg);
+}
+
+.center-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background-color: #722ed1;
+  box-shadow: 0 0 12px rgba(114, 46, 209, 0.8);
+}
+
+.scan-text {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #5d3f96;
+  font-weight: 700;
+}
+
+.feed {
+  flex: 1;
+  padding: 0 16px;
+}
+
+.state-box {
+  padding-top: 50px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8b7ca8;
+}
+
+.fade-item {
+  transition-property: opacity, transform;
+  transition-duration: 0.28s;
+}
+
+.fade-hide {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background-image: linear-gradient(135deg, #9a60ff 0%, #722ed1 100%);
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 10px 20px rgba(114, 46, 209, 0.35);
+  z-index: 120;
+}
+
+.fab-active {
+  opacity: 0.9;
+  transform: scale(0.96);
+}
+
+.fab-text {
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+@keyframes sweep-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+</style>

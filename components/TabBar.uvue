@@ -14,17 +14,22 @@
       <text class="tab-icon">🏠</text>
       <text :class="['tab-label', active === 'sublet' ? 'sublet-active' : 'normal']">安家</text>
     </view>
+
+    <view class="tab-item" @click="switchTab('social')">
+      <text class="tab-icon">📡</text>
+      <text :class="['tab-label', active === 'social' ? 'social-active' : 'normal']">搭子</text>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
 interface Props {
-  active: 'guide' | 'gigs' | 'sublet'
+  active: 'guide' | 'gigs' | 'sublet' | 'social'
 }
 
 const props = defineProps<Props>()
 
-const switchTab = (tab: 'guide' | 'gigs' | 'sublet') => {
+const switchTab = (tab: 'guide' | 'gigs' | 'sublet' | 'social') => {
   if (tab == props.active) {
     return
   }
@@ -32,8 +37,10 @@ const switchTab = (tab: 'guide' | 'gigs' | 'sublet') => {
     uni.reLaunch({ url: '/pages/index/index' })
   } else if (tab == 'gigs') {
     uni.reLaunch({ url: '/pages/gigs/gigs' })
-  } else {
+  } else if (tab == 'sublet') {
     uni.reLaunch({ url: '/pages/sublet/sublet' })
+  } else {
+    uni.reLaunch({ url: '/pages/social/social' })
   }
 }
 </script>
@@ -84,5 +91,9 @@ const switchTab = (tab: 'guide' | 'gigs' | 'sublet') => {
 
 .sublet-active {
   color: #1890ff;
+}
+
+.social-active {
+  color: #722ed1;
 }
 </style>

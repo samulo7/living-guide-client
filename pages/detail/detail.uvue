@@ -168,7 +168,6 @@ import { loadCityData } from '../../utils/dataLoader.ts'
 import type { CityItem } from '../../types/city'
 import type { SubletItem } from '../../types/sublet'
 import { loadSublets, getRecommendedSublets, normalizeCityName } from '../../utils/useSublets'
-import { onLoad } from '@dcloudio/uni-app'
 
 const emptyItem = {
   id: '', city: '加载中...', district: '', title: '',

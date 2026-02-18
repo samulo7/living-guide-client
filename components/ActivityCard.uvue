@@ -1,0 +1,156 @@
+<template>
+  <view class="card">
+    <image class="avatar" :src="activity.user.avatar" mode="aspectFill"></image>
+
+    <view class="content">
+      <view class="top-row">
+        <text class="nickname">{{ activity.user.nickname }}</text>
+        <view class="distance-tag">
+          <text class="distance-text">📍{{ activity.distance }}</text>
+        </view>
+      </view>
+
+      <text class="title">{{ activity.title }}</text>
+
+      <view class="tag-row">
+        <view v-for="(tag, index) in activity.user.tags.slice(0, 3)" :key="index" class="pill">
+          <text class="pill-text">{{ tag }}</text>
+        </view>
+      </view>
+
+      <text class="meta">{{ activity.time_ago }} · {{ joinedText }}</text>
+    </view>
+
+    <view class="action-wrap">
+      <view class="join-btn" :class="{ disabled: activity.status === 'full' }" @click.stop="emit('join')">
+        <text class="join-text">{{ activity.status === 'full' ? '已满' : '加入' }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { ActivityItem } from '../types/social'
+
+interface Props {
+  activity: ActivityItem
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{ join: [] }>()
+
+const joinedText = computed(() => `${props.activity.joined_people}/${props.activity.max_people} 人`)
+</script>
+
+<style scoped>
+.card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 14px 12px;
+  margin-bottom: 12px;
+  flex-direction: row;
+  align-items: flex-start;
+  box-shadow: 0 6px 18px rgba(49, 18, 88, 0.08);
+  border: 1px solid #f3ecff;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.content {
+  flex: 1;
+  margin-left: 10px;
+}
+
+.top-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nickname {
+  font-size: 15px;
+  color: #2f1f4b;
+  font-weight: 800;
+}
+
+.distance-tag {
+  background-color: #f2e8ff;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.distance-text {
+  font-size: 11px;
+  color: #5f2dbf;
+}
+
+.title {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #24163c;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.tag-row {
+  margin-top: 8px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.pill {
+  margin-right: 6px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #dfd0ff;
+  padding: 2px 8px;
+}
+
+.pill-text {
+  font-size: 11px;
+  color: #5a38a3;
+}
+
+.meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #8877a8;
+}
+
+.action-wrap {
+  margin-left: 8px;
+  justify-content: center;
+}
+
+.join-btn {
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #722ed1;
+  justify-content: center;
+  align-items: center;
+}
+
+.join-text {
+  font-size: 13px;
+  color: #722ed1;
+  font-weight: 700;
+}
+
+.disabled {
+  border-color: #d9d9d9;
+}
+
+.disabled .join-text {
+  color: #bfbfbf;
+}
+</style>

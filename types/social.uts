@@ -1,0 +1,21 @@
+export type ActivityType = 'drink' | 'sport' | 'chill' | 'game' | 'meal'
+export type ActivityStatus = 'active' | 'full'
+
+export interface ActivityUser {
+  id: string
+  nickname: string
+  avatar: string
+  tags: string[]
+}
+
+export interface ActivityItem {
+  id: string
+  user: ActivityUser
+  type: ActivityType
+  title: string
+  distance: string
+  time_ago: string
+  status: ActivityStatus
+  max_people: number
+  joined_people: number
+}

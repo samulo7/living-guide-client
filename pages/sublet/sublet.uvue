@@ -46,7 +46,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
 import SubletCard from '../../components/SubletCard.uvue'
 import TabBar from '../../components/TabBar.uvue'
 import type { CityOption, SubletItem } from '../../types/sublet'
@@ -94,7 +93,10 @@ const goRoom = (id: string) => {
 onLoad((options) => {
   const city = options['city']
   if (city != null) {
-    cityQuery.value = decodeURIComponent(city as string)
+    const decodedCity = decodeURIComponent(city as string)
+    if (decodedCity != null) {
+      cityQuery.value = decodedCity
+    }
   }
   initData()
 })

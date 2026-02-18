@@ -45,7 +45,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
 import SurvivalBar from '../../components/SurvivalBar.uvue'
 import type { JobItem } from '../../types/job'
 import { buildSurvivalCompare, formatSalary, loadJobs } from '../../utils/useJobs'

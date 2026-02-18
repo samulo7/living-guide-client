@@ -1,0 +1,82 @@
+[
+  {
+    "id": "act_001",
+    "user": {
+      "id": "u_001",
+      "nickname": "野生程序员",
+      "avatar": "/static/logo.png",
+      "tags": ["社恐", "代码", "鹤岗"]
+    },
+    "type": "drink",
+    "title": "人民广场附近拼个咖啡，聊远程机会",
+    "distance": "0.5km",
+    "time_ago": "5分钟前",
+    "status": "active",
+    "max_people": 2,
+    "joined_people": 1
+  },
+  {
+    "id": "act_002",
+    "user": {
+      "id": "u_002",
+      "nickname": "海边慢跑者",
+      "avatar": "/static/logo.png",
+      "tags": ["夜跑", "摄影"]
+    },
+    "type": "sport",
+    "title": "海边夜跑 5 公里，慢速，不卷",
+    "distance": "1.2km",
+    "time_ago": "20分钟前",
+    "status": "active",
+    "max_people": 5,
+    "joined_people": 2
+  },
+  {
+    "id": "act_003",
+    "user": {
+      "id": "u_003",
+      "nickname": "发呆冠军",
+      "avatar": "/static/logo.png",
+      "tags": ["发呆", "散步", "低社交"]
+    },
+    "type": "chill",
+    "title": "公园长椅发呆 40 分钟，不聊天也行",
+    "distance": "0.8km",
+    "time_ago": "12分钟前",
+    "status": "active",
+    "max_people": 3,
+    "joined_people": 1
+  },
+  {
+    "id": "act_004",
+    "user": {
+      "id": "u_004",
+      "nickname": "手柄收藏家",
+      "avatar": "/static/logo.png",
+      "tags": ["游戏", "Switch"]
+    },
+    "type": "game",
+    "title": "晚上来一把分手厨房，2=1",
+    "distance": "2.3km",
+    "time_ago": "35分钟前",
+    "status": "active",
+    "max_people": 2,
+    "joined_people": 1
+  },
+  {
+    "id": "act_005",
+    "user": {
+      "id": "u_005",
+      "nickname": "早起吃面人",
+      "avatar": "/static/logo.png",
+      "tags": ["早餐", "本地小馆"]
+    },
+    "type": "meal",
+    "title": "明早 7 点吃牛肉面，吃完各自开工",
+    "distance": "0.3km",
+    "time_ago": "2分钟前",
+    "status": "full",
+    "max_people": 2,
+    "joined_people": 2
+  }
+]

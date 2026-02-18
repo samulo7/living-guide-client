@@ -1,0 +1,54 @@
+import { ActivityItem } from '../types/social'
+
+const ACTIVITY_DATA_PATH = '/static/data/activities.json'
+
+export async function loadActivities(): Promise<ActivityItem[]> {
+  const url = `${ACTIVITY_DATA_PATH}?t=${Date.now()}`
+  return new Promise<ActivityItem[]>((resolve, reject) => {
+    uni.request({
+      url: url,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject(`load activities failed: ${res.statusCode}`)
+          return
+        }
+        try {
+          const str = JSON.stringify(res.data)
+          const arr = JSON.parse<ActivityItem[]>(str) as ActivityItem[] | null
+          if (arr != null) {
+            resolve(arr)
+          } else {
+            reject('activities is empty')
+          }
+        } catch (error) {
+          reject(`parse activities failed: ${error}`)
+        }
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+function distanceToNumber(distance: string): number {
+  const text = distance.trim().toLowerCase()
+  if (text.endsWith('km')) {
+    const v = parseFloat(text.replace('km', ''))
+    return isNaN(v) ? 99999 : v
+  }
+  if (text.endsWith('m')) {
+    const v = parseFloat(text.replace('m', ''))
+    return isNaN(v) ? 99999 : v / 1000
+  }
+  const fallback = parseFloat(text)
+  return isNaN(fallback) ? 99999 : fallback
+}
+
+export function sortActivitiesByDistance(list: ActivityItem[]): ActivityItem[] {
+  return [...list].sort((a, b) => {
+    if (a.status != b.status) {
+      return a.status == 'active' ? -1 : 1
+    }
+    return distanceToNumber(a.distance) - distanceToNumber(b.distance)
+  })
+}

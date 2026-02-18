@@ -1,61 +1,68 @@
 {
-	"pages": [
-		{
-			"path": "pages/index/index",
-			"style": {
-				"navigationBarTitleText": "躺平旅居指南",
-				"navigationStyle": "custom",
-				"enablePullDownRefresh": false
-			}
-		},
-		{
-			"path": "pages/detail/detail",
-			"style": {
-				"navigationBarTitleText": "城市详情",
-				"navigationBarBackgroundColor": "#ffffff",
-				"navigationBarTextStyle": "black"
-			}
-		},
-		{
-		      "path": "pages/webview/webview",
-		      "style": {
-		        "navigationBarTitleText": "地图详情"
-		      }
-		    },
-		{
-			"path": "pages/gigs/gigs",
-			"style": {
-				"navigationBarTitleText": "旅居搞钱",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/gigs/detail",
-			"style": {
-				"navigationBarTitleText": "职位详情",
-				"navigationStyle": "custom"
-			}
-		    },
-		{
-			"path": "pages/sublet/sublet",
-			"style": {
-				"navigationBarTitleText": "流浪转租",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/sublet/detail",
-			"style": {
-				"navigationBarTitleText": "房源详情",
-				"navigationStyle": "custom"
-			}
-		}
-	],
-	"globalStyle": {
-		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "躺平旅居指南",
-		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
-	},
-	"uniIdRouter": {}
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "躺平旅居指南",
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
+      "path": "pages/detail/detail",
+      "style": {
+        "navigationBarTitleText": "城市详情",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/webview/webview",
+      "style": {
+        "navigationBarTitleText": "地图详情"
+      }
+    },
+    {
+      "path": "pages/gigs/gigs",
+      "style": {
+        "navigationBarTitleText": "旅居搞钱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/gigs/detail",
+      "style": {
+        "navigationBarTitleText": "职位详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/sublet/sublet",
+      "style": {
+        "navigationBarTitleText": "流浪转租",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/sublet/detail",
+      "style": {
+        "navigationBarTitleText": "房源详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/social/social",
+      "style": {
+        "navigationBarTitleText": "搭子雷达",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "躺平旅居指南",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "uniIdRouter": {}
 }

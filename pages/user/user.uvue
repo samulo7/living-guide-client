@@ -67,26 +67,42 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import TabBar from '../../components/TabBar.uvue'
-import type { UserCenterData, UserMenuItem } from '../../types/user'
-import { loadUserCenterData } from '../../utils/useUser'
+import type { UserMenuItem } from '../../types/user'
 
 const loading = ref(true)
-const centerData = ref<UserCenterData | null>(null)
+const API_BASE_URL = 'http://localhost:3000'
 
-const profile = computed(() => centerData.value?.profile ?? null)
-const dashboard = computed(() => centerData.value?.dashboard ?? {
+const nickname = ref('数字游民')
+const avatar = ref('/static/logo.png')
+const currentCity = ref('--')
+const nomadDays = ref(0)
+const displayTags = ref<string[]>(['旅居中'])
+const walletBalance = ref(0)
+const walletIncome = ref(3200)
+const resumeCompletion = ref(85)
+const favoriteCities = ref<string[]>(['鹤岗', '伊春'])
+const dashboard = ref({
   appliedJobs: 0,
   postedRooms: 0,
   joinedParties: 0
 })
 
-const nickname = computed(() => profile.value?.nickname ?? '数字游民')
-const avatar = computed(() => profile.value?.avatar ?? '/static/logo.png')
-const currentCity = computed(() => profile.value?.current_city ?? '--')
-const nomadDays = computed(() => profile.value?.nomad_days ?? 0)
-const displayTags = computed(() => profile.value?.tags ?? [])
+interface ApiUserProfile {
+  id: number
+  username: string
+  avatar: string
+  tagline: string
+  balance: number | string
+  created_at: string
+}
+
+interface ApiUserProfileResponse {
+  ok: boolean
+  data?: ApiUserProfile
+  message?: string
+}
 
 const dashboardCards = computed(() => [
   { id: 'gigs', icon: '💼', title: '搞钱', value: dashboard.value.appliedJobs },
@@ -95,12 +111,9 @@ const dashboardCards = computed(() => [
 ])
 
 const menuItems = computed<UserMenuItem[]>(() => {
-  const resumePercent = profile.value?.resume_completion ?? 85
-  const favorites = profile.value?.favorite_cities ?? []
-
   return [
-    { id: 'resume', title: '我的简历', desc: `完整度 ${resumePercent}%` },
-    { id: 'favorites', title: '收藏城市', desc: favorites.length == 0 ? '暂无收藏' : favorites.join(' · ') },
+    { id: 'resume', title: '我的简历', desc: `完整度 ${resumeCompletion.value}%` },
+    { id: 'favorites', title: '收藏城市', desc: favoriteCities.value.length == 0 ? '暂无收藏' : favoriteCities.value.join(' · ') },
     { id: 'settings', title: '系统设置', desc: '通知、隐私、账号安全' }
   ]
 })
@@ -113,8 +126,8 @@ function formatCurrency(value: number): string {
   return fixed
 }
 
-const walletBalanceText = computed(() => formatCurrency(profile.value?.wallet.balance ?? 0))
-const walletIncomeText = computed(() => formatCurrency(profile.value?.wallet.month_income ?? 0))
+const walletBalanceText = computed(() => formatCurrency(walletBalance.value))
+const walletIncomeText = computed(() => formatCurrency(walletIncome.value))
 
 const onMenuClick = (id: string) => {
   if (id == 'resume') {
@@ -130,9 +143,61 @@ const onLogout = () => {
   uni.showToast({ title: '已退出登录（模拟）', icon: 'none' })
 }
 
-const initData = async () => {
+function parseTagline(tagline: string): { city: string; days: number } {
+  const text = (tagline ?? '').trim()
+  const matched = text.match(/已在(.+?)旅居\s*(\d+)\s*天/)
+  if (matched != null) {
+    return {
+      city: matched[1] ?? '--',
+      days: Number(matched[2] ?? '0')
+    }
+  }
+  return { city: '--', days: 0 }
+}
+
+function toNumber(value: number | string, fallback: number): number {
+  const parsed = typeof value == 'number' ? value : parseFloat(value)
+  return isNaN(parsed) ? fallback : parsed
+}
+
+function applyUserProfile(profile: ApiUserProfile) {
+  nickname.value = profile.username ?? nickname.value
+  avatar.value = profile.avatar != '' ? profile.avatar : '/static/logo.png'
+  walletBalance.value = toNumber(profile.balance, walletBalance.value)
+
+  const parsed = parseTagline(profile.tagline ?? '')
+  currentCity.value = parsed.city
+  nomadDays.value = parsed.days
+  displayTags.value = [`${currentCity.value}旅居`, '大本营模式']
+}
+
+const fetchUserProfile = async () => {
   try {
-    centerData.value = await loadUserCenterData()
+    await new Promise<void>((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/user/profile`,
+        method: 'GET',
+        success: (res) => {
+          if (res.statusCode != 200) {
+            reject(`请求失败: ${res.statusCode}`)
+            return
+          }
+          try {
+            const str = JSON.stringify(res.data)
+            const payload = JSON.parse<ApiUserProfileResponse>(str) as ApiUserProfileResponse | null
+            if (payload == null || !payload.ok || payload.data == null) {
+              reject(payload?.message ?? '用户信息为空')
+              return
+            }
+            applyUserProfile(payload.data)
+            resolve()
+          } catch (error) {
+            reject(`解析失败: ${error}`)
+          }
+        },
+        fail: (err) => reject(err)
+      })
+    })
   } catch (error) {
     uni.showToast({ title: '用户数据加载失败', icon: 'none' })
   } finally {
@@ -140,8 +205,8 @@ const initData = async () => {
   }
 }
 
-onMounted(() => {
-  initData()
+onLoad(() => {
+  fetchUserProfile()
 })
 </script>
 

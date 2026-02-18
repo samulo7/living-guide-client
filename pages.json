@@ -35,7 +35,21 @@
 				"navigationBarTitleText": "职位详情",
 				"navigationStyle": "custom"
 			}
-		    }
+		    },
+		{
+			"path": "pages/sublet/sublet",
+			"style": {
+				"navigationBarTitleText": "流浪转租",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/sublet/detail",
+			"style": {
+				"navigationBarTitleText": "房源详情",
+				"navigationStyle": "custom"
+			}
+		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",

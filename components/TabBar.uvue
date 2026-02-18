@@ -1,38 +1,39 @@
 <template>
   <view class="tab-bar">
-    <view
-      class="tab-item"
-      @click="switchTab('guide')"
-    >
+    <view class="tab-item" @click="switchTab('guide')">
       <text class="tab-icon">🧭</text>
       <text :class="['tab-label', active === 'guide' ? 'guide-active' : 'normal']">指南</text>
     </view>
 
-    <view
-      class="tab-item"
-      @click="switchTab('gigs')"
-    >
+    <view class="tab-item" @click="switchTab('gigs')">
       <text class="tab-icon">💼</text>
       <text :class="['tab-label', active === 'gigs' ? 'gigs-active' : 'normal']">搞钱</text>
+    </view>
+
+    <view class="tab-item" @click="switchTab('sublet')">
+      <text class="tab-icon">🏠</text>
+      <text :class="['tab-label', active === 'sublet' ? 'sublet-active' : 'normal']">安家</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 interface Props {
-  active: 'guide' | 'gigs'
+  active: 'guide' | 'gigs' | 'sublet'
 }
 
 const props = defineProps<Props>()
 
-const switchTab = (tab: 'guide' | 'gigs') => {
+const switchTab = (tab: 'guide' | 'gigs' | 'sublet') => {
   if (tab == props.active) {
     return
   }
   if (tab == 'guide') {
     uni.reLaunch({ url: '/pages/index/index' })
-  } else {
+  } else if (tab == 'gigs') {
     uni.reLaunch({ url: '/pages/gigs/gigs' })
+  } else {
+    uni.reLaunch({ url: '/pages/sublet/sublet' })
   }
 }
 </script>
@@ -79,5 +80,9 @@ const switchTab = (tab: 'guide' | 'gigs') => {
 
 .gigs-active {
   color: #faad14;
+}
+
+.sublet-active {
+  color: #1890ff;
 }
 </style>

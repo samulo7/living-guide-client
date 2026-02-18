@@ -86,6 +86,31 @@
           </view>
           <text class="block-text">{{ consInfo }}</text>
         </view>
+
+        <view class="sublet-block">
+          <view class="sublet-head">
+            <text class="sublet-title">🏠 本市房源推荐</text>
+            <text class="sublet-more" @click="goToCitySublets">查看全部 ></text>
+          </view>
+          <view v-if="recommendedSublets.length === 0" class="sublet-empty">
+            <text class="sublet-empty-text">本市暂未收录房源，可先去安家页看看其他城市</text>
+          </view>
+          <view v-else>
+            <view
+              class="sublet-item"
+              v-for="room in recommendedSublets"
+              :key="room.id"
+              @click="goToRoomDetail(room.id)"
+            >
+              <image class="sublet-cover" :src="room.cover_image" mode="aspectFill"></image>
+              <view class="sublet-content">
+                <text class="sublet-item-title">{{ room.title }}</text>
+                <text class="sublet-item-meta">{{ room.district }} · {{ room.community }}</text>
+                <text class="sublet-item-price">¥{{ room.price }}/月 · {{ room.min_duration }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
         
         <view style="height: 100px;"></view>
       </view>
@@ -141,6 +166,8 @@
 import { ref, computed } from 'vue'
 import { loadCityData } from '../../utils/dataLoader.ts'
 import type { CityItem } from '../../types/city'
+import type { SubletItem } from '../../types/sublet'
+import { loadSublets, getRecommendedSublets, normalizeCityName } from '../../utils/useSublets'
 import { onLoad } from '@dcloudio/uni-app'
 
 const emptyItem = {
@@ -154,6 +181,7 @@ const emptyItem = {
 } as CityItem
 
 const cityItem = ref<CityItem>(emptyItem)
+const recommendedSublets = ref<SubletItem[]>([])
 const updateDate = ref('2026.01')
 // ✅ 修改点 2：新增图片加载错误状态
 const imgLoadError = ref(false)
@@ -172,8 +200,18 @@ const initData = async (id: string) => {
       cityItem.value = found 
       // 每次加载新数据，重置错误状态
       imgLoadError.value = false
+      await loadSubletRecommend(found.city)
     }
   } catch (e) { console.error('加载详情失败', e) }
+}
+
+const loadSubletRecommend = async (cityName: string) => {
+  try {
+    const sublets = await loadSublets()
+    recommendedSublets.value = getRecommendedSublets(sublets, cityName, 2)
+  } catch (error) {
+    recommendedSublets.value = []
+  }
 }
 
 // ✅ 修改点 3：智能封面图逻辑
@@ -225,6 +263,15 @@ const openMap = () => {
   const name = cityItem.value.city + cityItem.value.district
   const url = `https://uri.amap.com/marker?position=${loc.lng},${loc.lat}&name=${name}&coordinate=gaode&callnative=1`
   uni.navigateTo({ url: `/pages/webview/webview?url=${encodeURIComponent(url)}` })
+}
+
+const goToCitySublets = () => {
+  const city = normalizeCityName(cityItem.value.city)
+  uni.navigateTo({ url: `/pages/sublet/sublet?city=${encodeURIComponent(city)}` })
+}
+
+const goToRoomDetail = (id: string) => {
+  uni.navigateTo({ url: `/pages/sublet/detail?id=${id}` })
 }
 
 const guruQuote = computed(() => cityItem.value.detail?.guru_comment || '')
@@ -368,6 +415,21 @@ const submitFeedback = () => {
 .cons-block { background-color: #FFFBE6; border: 1px solid #FFE58F; border-radius: 12px; padding: 16px; margin-bottom: 16px; margin-top: 24px; }
 .cons-block .block-title, .cons-block .warning-text, .cons-block .block-icon { color: #D48806 !important; }
 .cons-block .block-text { color: #555; }
+
+/* 房源推荐 */
+.sublet-block { background-color: #FFFDF5; border: 1px solid #F3E8C2; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+.sublet-head { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sublet-title { font-size: 16px; color: #5A4B27; font-weight: bold; }
+.sublet-more { font-size: 12px; color: #1890FF; }
+.sublet-empty { background-color: #fff; border-radius: 8px; padding: 10px; }
+.sublet-empty-text { font-size: 12px; color: #8c8c8c; }
+.sublet-item { background-color: #fff; border-radius: 10px; padding: 8px; margin-bottom: 10px; flex-direction: row; }
+.sublet-item:last-child { margin-bottom: 0; }
+.sublet-cover { width: 92px; height: 72px; border-radius: 8px; margin-right: 10px; }
+.sublet-content { flex: 1; justify-content: space-between; }
+.sublet-item-title { font-size: 13px; color: #262626; font-weight: 700; lines: 2; }
+.sublet-item-meta { font-size: 11px; color: #8c8c8c; margin-top: 2px; }
+.sublet-item-price { font-size: 12px; color: #d46b08; margin-top: 4px; font-weight: 700; }
 
 /* --- 底部 & 弹窗 --- */
 .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 80px; background-color: #fff; border-top: 1px solid #f0f0f0; flex-direction: row; align-items: center; padding: 0 20px 20px; justify-content: space-between; gap: 12px; }

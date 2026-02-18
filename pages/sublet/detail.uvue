@@ -1,0 +1,354 @@
+<template>
+  <view class="page">
+    <scroll-view class="scroll" direction="vertical">
+      <view class="hero">
+        <swiper class="swiper" circular :autoplay="true" :interval="3500">
+          <swiper-item v-for="(img, index) in gallery" :key="index">
+            <image class="cover" :src="img" mode="aspectFill"></image>
+          </swiper-item>
+        </swiper>
+        <view class="back-btn" @click="goBack">
+          <text class="back-text">← 返回</text>
+        </view>
+      </view>
+
+      <view class="main-card">
+        <text class="title">{{ room.title }}</text>
+        <view class="price-row">
+          <text class="price">¥{{ room.price }}</text>
+          <text class="unit">/{{ room.price_unit.replace('元/', '').replace('元', '') }}</text>
+        </view>
+        <text class="location">{{ room.city_name }} · {{ room.district }} · {{ room.community }}</text>
+        <text class="duration">起租：{{ room.min_duration }}</text>
+      </view>
+
+      <view class="block">
+        <text class="block-title">配套设施</text>
+        <view class="facility-row">
+          <view v-for="(item, index) in displayFacilities" :key="index" class="facility-item">
+            <text class="facility-icon">{{ facilityIcon(item) }}</text>
+            <text class="facility-text">{{ item }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="block">
+        <text class="block-title">大概位置</text>
+        <view class="map-box">
+          <text class="map-text">📍 {{ room.city_name }} {{ room.district }} {{ room.community }}</text>
+          <text class="map-sub">仅展示大概范围，具体门牌联系房东后确认</text>
+          <view class="map-btn" @click="openMap">
+            <text class="map-btn-text">打开地图</text>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 110px;"></view>
+    </scroll-view>
+
+    <view class="footer">
+      <view class="contact-box" @click="contactOwner">
+        <image class="avatar" :src="room.owner_avatar" mode="aspectFill"></image>
+        <view>
+          <text class="owner">{{ room.owner_name }}</text>
+          <text class="contact">联系房东</text>
+        </view>
+      </view>
+      <view class="rent-btn" @click="needLogin">
+        <text class="rent-text">我想租</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import type { SubletItem } from '../../types/sublet'
+import { loadSublets } from '../../utils/useSublets'
+
+const emptyRoom = {
+  id: '',
+  city_name: '加载中',
+  district: '',
+  community: '',
+  title: '',
+  price: 0,
+  price_unit: '元/月',
+  min_duration: '',
+  tags: [] as string[],
+  cover_image: '/static/images/1.jpg',
+  owner_avatar: '/static/logo.png',
+  owner_name: '',
+  contact_wechat: '',
+  is_verified: false,
+  location: { lat: 0, lng: 0 },
+  facilities: [] as string[]
+} as SubletItem
+
+const room = ref<SubletItem>(emptyRoom)
+
+const gallery = computed(() => [room.value.cover_image, '/static/images/2.jpg', '/static/images/3.jpg'])
+const displayFacilities = computed(() => {
+  if (room.value.facilities.length > 0) {
+    return room.value.facilities
+  }
+  return ['WiFi', '淋浴', '厨房', '暖气']
+})
+
+const facilityIcon = (name: string): string => {
+  if (name.includes('WiFi')) return '📶'
+  if (name.includes('淋浴')) return '🚿'
+  if (name.includes('厨房')) return '🍳'
+  if (name.includes('暖气')) return '♨️'
+  return '🏠'
+}
+
+const goBack = () => uni.navigateBack({})
+
+const openMap = () => {
+  const loc = room.value.location
+  if (loc.lat == 0 || loc.lng == 0) {
+    uni.showToast({ title: '暂无坐标信息', icon: 'none' })
+    return
+  }
+  const name = `${room.value.city_name}${room.value.district}${room.value.community}`
+  const url = `https://uri.amap.com/marker?position=${loc.lng},${loc.lat}&name=${name}&coordinate=gaode&callnative=1`
+  uni.navigateTo({ url: `/pages/webview/webview?url=${encodeURIComponent(url)}` })
+}
+
+const contactOwner = () => {
+  uni.showModal({
+    title: '联系房东',
+    content: `房东：${room.value.owner_name}\n微信：${room.value.contact_wechat}`,
+    showCancel: false
+  })
+}
+
+const needLogin = () => {
+  uni.showToast({ title: '需登录后操作', icon: 'none' })
+}
+
+onLoad(async (options) => {
+  const id = options['id']
+  if (id == null) {
+    return
+  }
+  try {
+    const data = await loadSublets()
+    const found = data.find((item) => item.id == (id as string))
+    if (found != null) {
+      room.value = found
+    }
+  } catch (error) {
+    uni.showToast({ title: '房源详情加载失败', icon: 'none' })
+  }
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f5f5dc;
+}
+
+.scroll {
+  height: 100%;
+}
+
+.hero {
+  position: relative;
+}
+
+.swiper {
+  width: 100%;
+  height: 260px;
+}
+
+.cover {
+  width: 100%;
+  height: 100%;
+}
+
+.back-btn {
+  position: absolute;
+  top: 50px;
+  left: 16px;
+  width: 76px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: rgba(255, 255, 255, 0.9);
+  justify-content: center;
+  align-items: center;
+}
+
+.back-text {
+  font-size: 13px;
+  color: #595959;
+}
+
+.main-card {
+  background-color: #fff;
+  margin: -18px 16px 0;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.title {
+  font-size: 18px;
+  color: #262626;
+  font-weight: 800;
+  line-height: 24px;
+}
+
+.price-row {
+  margin-top: 8px;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.price {
+  font-size: 26px;
+  color: #d46b08;
+  font-weight: 900;
+}
+
+.unit {
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.location {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #595959;
+}
+
+.duration {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #595959;
+}
+
+.block {
+  margin: 12px 16px 0;
+  background-color: #fff;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.block-title {
+  font-size: 16px;
+  color: #262626;
+  font-weight: 800;
+}
+
+.facility-row {
+  margin-top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.facility-item {
+  width: 25%;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.facility-icon {
+  font-size: 20px;
+}
+
+.facility-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #595959;
+}
+
+.map-box {
+  margin-top: 10px;
+  background-color: #fafafa;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.map-text {
+  font-size: 14px;
+  color: #434343;
+}
+
+.map-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.map-btn {
+  margin-top: 10px;
+  width: 100px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: #1890ff;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-btn-text {
+  font-size: 12px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 86px;
+  padding: 0 16px 20px;
+  background-color: #fff;
+  border-top: 1px solid #f0f0f0;
+  flex-direction: row;
+  align-items: center;
+}
+
+.contact-box {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  margin-right: 8px;
+}
+
+.owner {
+  font-size: 13px;
+  color: #262626;
+  font-weight: 700;
+}
+
+.contact {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.rent-btn {
+  width: 120px;
+  height: 42px;
+  border-radius: 21px;
+  background-color: #d9d9d9;
+  justify-content: center;
+  align-items: center;
+}
+
+.rent-text {
+  color: #595959;
+  font-size: 14px;
+  font-weight: 700;
+}
+</style>

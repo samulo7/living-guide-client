@@ -1,0 +1,77 @@
+import { SubletItem, CityOption } from '../types/sublet'
+import { CityItem } from '../types/city'
+
+const SUBLET_PATH = '/static/data/sublets.json'
+
+export async function loadSublets(): Promise<SubletItem[]> {
+  const url = `${SUBLET_PATH}?t=${Date.now()}`
+  return new Promise<SubletItem[]>((resolve, reject) => {
+    uni.request({
+      url: url,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject(`加载房源失败: ${res.statusCode}`)
+          return
+        }
+        try {
+          const str = JSON.stringify(res.data)
+          const arr = JSON.parse<SubletItem[]>(str) as SubletItem[] | null
+          if (arr != null) {
+            resolve(arr)
+          } else {
+            reject('房源数据为空')
+          }
+        } catch (error) {
+          reject(`房源数据解析失败: ${error}`)
+        }
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+export function normalizeCityName(city: string): string {
+  let name = city.trim()
+  name = name.replace('省', '')
+  name = name.replace('市', '')
+  name = name.replace('地区', '')
+  name = name.replace('自治州', '')
+  name = name.replace('自治县', '')
+  name = name.replace(' ', '')
+  return name
+}
+
+export function filterSubletsByCity(sublets: SubletItem[], city: string): SubletItem[] {
+  if (city == '' || city == 'all') {
+    return sublets
+  }
+  const target = normalizeCityName(city)
+  return sublets.filter((item) => normalizeCityName(item.city_name) == target)
+}
+
+export function getCityOptionsFromCityData(cities: CityItem[]): CityOption[] {
+  const result: CityOption[] = []
+  cities.forEach((item) => {
+    const normalized = normalizeCityName(item.city)
+    if (normalized == '') {
+      return
+    }
+    const exists = result.some((opt) => opt.value == normalized)
+    if (!exists) {
+      result.push({ value: normalized, label: normalized } as CityOption)
+    }
+  })
+  return result
+}
+
+export function getRecommendedSublets(sublets: SubletItem[], city: string, limit: number): SubletItem[] {
+  const filtered = filterSubletsByCity(sublets, city)
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.is_verified != b.is_verified) {
+      return a.is_verified ? -1 : 1
+    }
+    return a.price - b.price
+  })
+  return sorted.slice(0, limit)
+}

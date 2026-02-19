@@ -2,8 +2,10 @@ const express = require('express')
 const multer = require('multer')
 const path = require('path')
 const { pool } = require('../config/db')
+const authMiddleware = require('../middleware/authMiddleware')
 
 const router = express.Router()
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -37,21 +39,24 @@ function resolveAvatarUrl(uploadResult, req, objectKey) {
   return objectKey
 }
 
+router.use(authMiddleware)
+
 router.get('/profile', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-        SELECT id, username, avatar, tagline, balance, created_at
+        SELECT id, phone, username, avatar, tagline, balance, created_at
         FROM users
-        ORDER BY id ASC
+        WHERE id = ?
         LIMIT 1
-      `
+      `,
+      [req.user.id]
     )
 
     if (!rows || rows.length === 0) {
       res.status(404).json({
         ok: false,
-        message: 'No user profile found'
+        message: 'User profile not found'
       })
       return
     }
@@ -88,14 +93,14 @@ router.put('/profile', async (req, res) => {
         ? `
           UPDATE users
           SET username = ?, tagline = ?
-          WHERE id = 1
+          WHERE id = ?
         `
         : `
           UPDATE users
           SET username = ?, tagline = ?, avatar = ?
-          WHERE id = 1
+          WHERE id = ?
         `
-    const params = avatar == '' ? [username, tagline] : [username, tagline, avatar]
+    const params = avatar == '' ? [username, tagline, req.user.id] : [username, tagline, avatar, req.user.id]
     const [result] = await pool.query(sql, params)
 
     if (result.affectedRows === 0) {
@@ -108,13 +113,13 @@ router.put('/profile', async (req, res) => {
 
     res.json({
       success: true,
-      message: '更新成功'
+      message: 'Profile updated'
     })
   } catch (error) {
     console.error('[PUT /api/user/profile] failed:', error.message)
     res.status(500).json({
       success: false,
-      message: '更新失败'
+      message: 'Failed to update profile'
     })
   }
 })
@@ -167,9 +172,9 @@ router.post('/avatar', (req, res) => {
         `
           UPDATE users
           SET avatar = ?
-          WHERE id = 1
+          WHERE id = ?
         `,
-        [avatarUrl]
+        [avatarUrl, req.user.id]
       )
 
       if (result.affectedRows === 0) {

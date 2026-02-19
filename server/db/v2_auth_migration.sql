@@ -1,25 +1,4 @@
-CREATE DATABASE IF NOT EXISTS nomad_guide
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
 USE nomad_guide;
-
-CREATE TABLE IF NOT EXISTS users (
-  id INT NOT NULL AUTO_INCREMENT,
-  phone VARCHAR(20) NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  username VARCHAR(100) NOT NULL,
-  avatar VARCHAR(500) NOT NULL,
-  tagline VARCHAR(255) NOT NULL,
-  balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uk_users_phone (phone)
-);
-
--- Legacy table compatibility for v1/v2 schemas.
-ALTER TABLE users
-  MODIFY COLUMN avatar VARCHAR(500) NOT NULL;
 
 SET @col_phone_exists := (
   SELECT COUNT(1)
@@ -66,9 +45,7 @@ SET password = '$2b$10$9sEgusePsrX.RBwstqNy9ObtzaCbyGtAsS1gQrYlPSVsW9sJTbONq'
 WHERE password IS NULL OR password = '';
 
 ALTER TABLE users
-  MODIFY COLUMN phone VARCHAR(20) NOT NULL;
-
-ALTER TABLE users
+  MODIFY COLUMN phone VARCHAR(20) NOT NULL,
   MODIFY COLUMN password VARCHAR(255) NOT NULL;
 
 SET @idx_exists := (
@@ -88,12 +65,3 @@ SET @idx_sql := IF(
 PREPARE idx_stmt FROM @idx_sql;
 EXECUTE idx_stmt;
 DEALLOCATE PREPARE idx_stmt;
-
--- Seed account:
--- phone: 13800000000
--- password: 123456
-INSERT INTO users (phone, password, username, avatar, tagline, balance)
-SELECT '13800000000', '$2b$10$9sEgusePsrX.RBwstqNy9ObtzaCbyGtAsS1gQrYlPSVsW9sJTbONq', '流浪诗人', '/static/logo.png', '已在鹤岗旅居 45 天', 2450.00
-WHERE NOT EXISTS (
-  SELECT 1 FROM users WHERE phone = '13800000000'
-);

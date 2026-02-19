@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') })
 const express = require('express')
 const cors = require('cors')
 const OSS = require('ali-oss')
+const authRoutes = require('./src/routes/auth')
 const userRoutes = require('./src/routes/user')
 const { pingDb } = require('./src/config/db')
 
@@ -86,6 +87,7 @@ app.get('/api/health', (req, res) => {
   })
 })
 
+app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
 
 async function bootstrap() {

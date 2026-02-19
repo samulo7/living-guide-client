@@ -118,6 +118,7 @@ import type { UserMenuItem } from '../../types/user'
 
 const loading = ref(true)
 const API_BASE_URL = 'http://localhost:3000'
+const TOKEN_KEY = 'token'
 
 const nickname = ref('数字游民')
 const tagline = ref('已在--旅居 0 天')
@@ -210,6 +211,37 @@ function formatCurrency(value: number): string {
 
 const walletBalanceText = computed(() => formatCurrency(walletBalance.value))
 const walletIncomeText = computed(() => formatCurrency(walletIncome.value))
+let isNavigatingToLogin = false
+
+function getToken(): string {
+  const token = uni.getStorageSync(TOKEN_KEY)
+  return typeof token == 'string' ? token.trim() : ''
+}
+
+function getAuthHeader(): Record<string, string> {
+  const token = getToken()
+  if (token == '') {
+    return {}
+  }
+  return {
+    Authorization: `Bearer ${token}`
+  }
+}
+
+function redirectToLogin(message?: string) {
+  if (isNavigatingToLogin) {
+    return
+  }
+  isNavigatingToLogin = true
+  uni.removeStorageSync(TOKEN_KEY)
+  if (message != null && message != '') {
+    uni.showToast({ title: message, icon: 'none' })
+  }
+  setTimeout(() => {
+    uni.reLaunch({ url: '/pages/login/login' })
+    isNavigatingToLogin = false
+  }, 200)
+}
 
 const onMenuClick = (id: string) => {
   if (id == 'resume') {
@@ -222,7 +254,8 @@ const onMenuClick = (id: string) => {
 }
 
 const onLogout = () => {
-  uni.showToast({ title: '已退出登录（模拟）', icon: 'none' })
+  uni.removeStorageSync(TOKEN_KEY)
+  uni.reLaunch({ url: '/pages/login/login' })
 }
 
 function parseTagline(taglineText: string): { city: string; days: number } | null {
@@ -343,8 +376,13 @@ const onChangeAvatar = async () => {
         url: `${API_BASE_URL}/api/user/avatar`,
         filePath,
         name: 'avatar',
+        header: getAuthHeader(),
         success: (res) => {
           const payload = parseApiPayload<ApiAvatarUploadResponse>(res.data)
+          if (res.statusCode == 401) {
+            reject('UNAUTHORIZED')
+            return
+          }
           if (res.statusCode != 200) {
             reject(payload?.message ?? `上传失败: ${res.statusCode}`)
             return
@@ -364,6 +402,10 @@ const onChangeAvatar = async () => {
   } catch (error) {
     const errorText = JSON.stringify(error)
     if (errorText.includes('cancel')) {
+      return
+    }
+    if (String(error) == 'UNAUTHORIZED') {
+      redirectToLogin('登录已过期，请重新登录')
       return
     }
     console.error('[onChangeAvatar] failed:', error)
@@ -393,12 +435,17 @@ const saveProfile = async () => {
       uni.request({
         url: `${API_BASE_URL}/api/user/profile`,
         method: 'PUT',
+        header: getAuthHeader(),
         data: {
           avatar: nextAvatar,
           username: nextUsername,
           tagline: nextTagline
         },
         success: (res) => {
+          if (res.statusCode == 401) {
+            reject('UNAUTHORIZED')
+            return
+          }
           if (res.statusCode != 200) {
             if (res.statusCode == 404) {
               reject('接口不存在，请重启后端服务')
@@ -429,6 +476,10 @@ const saveProfile = async () => {
     isEditing.value = false
     uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (error) {
+    if (String(error) == 'UNAUTHORIZED') {
+      redirectToLogin('登录已过期，请重新登录')
+      return
+    }
     console.error('[saveProfile] failed:', error)
     uni.showToast({ title: '保存失败，请检查后端', icon: 'none' })
   } finally {
@@ -442,7 +493,12 @@ const fetchUserProfile = async () => {
       uni.request({
         url: `${API_BASE_URL}/api/user/profile`,
         method: 'GET',
+        header: getAuthHeader(),
         success: (res) => {
+          if (res.statusCode == 401) {
+            reject('UNAUTHORIZED')
+            return
+          }
           if (res.statusCode != 200) {
             reject(`请求失败: ${res.statusCode}`)
             return
@@ -459,6 +515,10 @@ const fetchUserProfile = async () => {
       })
     })
   } catch (error) {
+    if (String(error) == 'UNAUTHORIZED') {
+      redirectToLogin('登录已过期，请重新登录')
+      return
+    }
     console.error('[fetchUserProfile] failed:', error)
     uni.showToast({ title: '用户数据加载失败', icon: 'none' })
   } finally {
@@ -467,6 +527,11 @@ const fetchUserProfile = async () => {
 }
 
 onLoad(() => {
+  if (getToken() == '') {
+    loading.value = false
+    redirectToLogin('请先登录')
+    return
+  }
   fetchUserProfile()
 })
 </script>

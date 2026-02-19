@@ -1,12 +1,80 @@
-require('dotenv').config()
+const path = require('path')
+require('dotenv').config({ path: path.join(__dirname, '.env') })
 
 const express = require('express')
 const cors = require('cors')
+const OSS = require('ali-oss')
 const userRoutes = require('./src/routes/user')
 const { pingDb } = require('./src/config/db')
 
+function cleanEnvValue(value) {
+  return String(value || '')
+    .replace(/\s+#.*$/, '')
+    .trim()
+}
+
+function normalizeOssRegion(value) {
+  const cleaned = cleanEnvValue(value)
+    .replace(/^https?:\/\//, '')
+    .replace(/\.aliyuncs\.com$/, '')
+  return cleaned
+}
+
 const app = express()
 const PORT = Number(process.env.PORT || 3000)
+const OSS_REGION = normalizeOssRegion(process.env.OSS_REGION)
+const OSS_ACCESS_KEY_ID = cleanEnvValue(process.env.OSS_ACCESS_KEY_ID)
+const OSS_ACCESS_KEY_SECRET = cleanEnvValue(process.env.OSS_ACCESS_KEY_SECRET)
+const OSS_BUCKET = cleanEnvValue(process.env.OSS_BUCKET)
+const OSS_ENDPOINT = cleanEnvValue(process.env.OSS_ENDPOINT)
+const OSS_PUBLIC_BASE_URL = cleanEnvValue(process.env.OSS_PUBLIC_BASE_URL)
+
+const ossConfigured =
+  OSS_REGION != '' &&
+  OSS_ACCESS_KEY_ID != '' &&
+  OSS_ACCESS_KEY_SECRET != '' &&
+  OSS_BUCKET != ''
+
+const ossEndpointValue =
+  OSS_ENDPOINT != ''
+    ? OSS_ENDPOINT.replace(/^https?:\/\//, '')
+    : `${OSS_REGION}.aliyuncs.com`
+const ossPublicBaseUrlValue =
+  OSS_PUBLIC_BASE_URL != ''
+    ? OSS_PUBLIC_BASE_URL.replace(/\/$/, '')
+    : `https://${OSS_BUCKET}.${ossEndpointValue}`
+
+let ossInitErrorMessage = ''
+
+if (ossConfigured) {
+  const ossClientConfig = {
+    region: OSS_REGION,
+    accessKeyId: OSS_ACCESS_KEY_ID,
+    accessKeySecret: OSS_ACCESS_KEY_SECRET,
+    bucket: OSS_BUCKET
+  }
+  if (OSS_ENDPOINT != '') {
+    ossClientConfig.endpoint = OSS_ENDPOINT
+    ossClientConfig.secure = true
+  }
+  try {
+    app.locals.ossClient = new OSS(ossClientConfig)
+    app.locals.ossBucket = OSS_BUCKET
+    app.locals.ossEndpoint = ossEndpointValue
+    app.locals.ossPublicBaseUrl = ossPublicBaseUrlValue
+  } catch (error) {
+    ossInitErrorMessage = error.message || 'OSS init failed'
+    app.locals.ossClient = null
+    app.locals.ossBucket = ''
+    app.locals.ossEndpoint = ''
+    app.locals.ossPublicBaseUrl = ''
+  }
+} else {
+  app.locals.ossClient = null
+  app.locals.ossBucket = ''
+  app.locals.ossEndpoint = ''
+  app.locals.ossPublicBaseUrl = ''
+}
 
 app.use(cors())
 app.use(express.json())
@@ -31,6 +99,12 @@ async function bootstrap() {
 
   app.listen(PORT, () => {
     console.log(`[server] listening on http://localhost:${PORT}`)
+    if (app.locals.ossClient != null) {
+      console.log(`[oss] enabled (${OSS_BUCKET})`)
+    } else {
+      const suffix = ossInitErrorMessage != '' ? ` (${ossInitErrorMessage})` : ''
+      console.log(`[oss] disabled (missing/invalid OSS env config)${suffix}`)
+    }
   })
 }
 

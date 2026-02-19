@@ -10,7 +10,12 @@
             <image class="identity-bg" src="/static/images/3.jpg" mode="aspectFill"></image>
             <view class="identity-mask"></view>
             <view class="identity-main">
-              <image class="avatar" :src="avatar" mode="aspectFill"></image>
+              <view class="avatar-wrap" :class="{ 'avatar-wrap-editing': isEditing }" @click="onChangeAvatar">
+                <image class="avatar" :src="avatar" mode="aspectFill"></image>
+                <view v-if="isEditing" class="avatar-edit-mask">
+                  <text class="avatar-edit-text">{{ uploadingAvatar ? '上传中...' : '📷 点击更换头像' }}</text>
+                </view>
+              </view>
 
               <view v-if="!isEditing" class="profile-title-wrap">
                 <text class="nickname">{{ nickname }}</text>
@@ -20,6 +25,8 @@
               <view v-else class="profile-edit-wrap">
                 <input
                   v-model="editingUsername"
+                  @input="onEditingUsernameInput"
+                  @blur="onEditingUsernameInput"
                   class="profile-input"
                   maxlength="30"
                   placeholder-class="profile-input-placeholder"
@@ -28,6 +35,8 @@
                 />
                 <input
                   v-model="editingTagline"
+                  @input="onEditingTaglineInput"
+                  @blur="onEditingTaglineInput"
                   class="profile-input"
                   maxlength="60"
                   placeholder-class="profile-input-placeholder"
@@ -127,6 +136,7 @@ const dashboard = ref({
 })
 const isEditing = ref(false)
 const savingProfile = ref(false)
+const uploadingAvatar = ref(false)
 const editingUsername = ref('')
 const editingTagline = ref('')
 
@@ -147,6 +157,12 @@ interface ApiUserProfileResponse {
 
 interface ApiProfileUpdateResponse {
   success: boolean
+  message?: string
+}
+
+interface ApiAvatarUploadResponse {
+  success: boolean
+  avatarUrl?: string
   message?: string
 }
 
@@ -240,6 +256,41 @@ function applyTagline(taglineText: string) {
   displayTags.value = [`${currentCity.value}旅居`, '大本营模式']
 }
 
+function readInputValue(event: any): string {
+  if (event == null) {
+    return ''
+  }
+
+  if (typeof event == 'string') {
+    return event
+  }
+
+  const detailValue = event?.detail?.value
+  if (typeof detailValue == 'string') {
+    return detailValue
+  }
+
+  const targetValue = event?.target?.value
+  if (typeof targetValue == 'string') {
+    return targetValue
+  }
+
+  const rawValue = event?.value
+  if (typeof rawValue == 'string') {
+    return rawValue
+  }
+
+  return ''
+}
+
+const onEditingUsernameInput = (event: any) => {
+  editingUsername.value = readInputValue(event)
+}
+
+const onEditingTaglineInput = (event: any) => {
+  editingTagline.value = readInputValue(event)
+}
+
 function applyUserProfile(profile: ApiUserProfile) {
   nickname.value = profile.username ?? nickname.value
   tagline.value = profile.tagline != '' ? profile.tagline : tagline.value
@@ -262,6 +313,65 @@ const cancelEditProfile = () => {
   editingUsername.value = nickname.value
   editingTagline.value = tagline.value
   isEditing.value = false
+}
+
+const onChangeAvatar = async () => {
+  if (!isEditing.value || uploadingAvatar.value) {
+    return
+  }
+
+  try {
+    const filePath = await new Promise<string>((resolve, reject) => {
+      uni.chooseImage({
+        count: 1,
+        sizeType: ['compressed'],
+        success: (res) => {
+          const path = (res.tempFilePaths?.[0] as string | undefined) ?? ''
+          if (path == '') {
+            reject('No image selected')
+            return
+          }
+          resolve(path)
+        },
+        fail: (err) => reject(err)
+      })
+    })
+
+    uploadingAvatar.value = true
+    await new Promise<void>((resolve, reject) => {
+      uni.uploadFile({
+        url: `${API_BASE_URL}/api/user/avatar`,
+        filePath,
+        name: 'avatar',
+        success: (res) => {
+          const payload = parseApiPayload<ApiAvatarUploadResponse>(res.data)
+          if (res.statusCode != 200) {
+            reject(payload?.message ?? `上传失败: ${res.statusCode}`)
+            return
+          }
+          if (payload == null || payload.success != true || payload.avatarUrl == null || payload.avatarUrl == '') {
+            reject(payload?.message ?? '头像上传失败')
+            return
+          }
+          avatar.value = payload.avatarUrl
+          resolve()
+        },
+        fail: (err) => reject(err)
+      })
+    })
+
+    uni.showToast({ title: '头像已更新', icon: 'success' })
+  } catch (error) {
+    const errorText = JSON.stringify(error)
+    if (errorText.includes('cancel')) {
+      return
+    }
+    console.error('[onChangeAvatar] failed:', error)
+    const failMessage = typeof error == 'string' && error != '' ? error : '头像上传失败'
+    uni.showToast({ title: failMessage, icon: 'none' })
+  } finally {
+    uploadingAvatar.value = false
+  }
 }
 
 const saveProfile = async () => {
@@ -424,6 +534,37 @@ onLoad(() => {
   border-width: 2px;
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.65);
+}
+
+.avatar-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.avatar-wrap-editing {
+  transform: scale(1.02);
+}
+
+.avatar-edit-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 36px;
+  background-color: rgba(0, 0, 0, 0.46);
+  justify-content: center;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.avatar-edit-text {
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  font-weight: 700;
 }
 
 .nickname {

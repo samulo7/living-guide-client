@@ -5,32 +5,68 @@
         <text class="state-text">正在整理你的旅居档案...</text>
       </view>
 
-      <view v-else>
-        <view class="identity-card">
-          <image class="identity-bg" src="/static/images/3.jpg" mode="aspectFill"></image>
-          <view class="identity-mask"></view>
-          <view class="identity-main">
-            <image class="avatar" :src="avatar" mode="aspectFill"></image>
-            <text class="nickname">{{ nickname }}</text>
-            <text class="nomad-pill">已在{{ currentCity }}旅居 {{ nomadDays }} 天</text>
+        <view v-else>
+          <view class="identity-card">
+            <image class="identity-bg" src="/static/images/3.jpg" mode="aspectFill"></image>
+            <view class="identity-mask"></view>
+            <view class="identity-main">
+              <image class="avatar" :src="avatar" mode="aspectFill"></image>
 
-            <view class="tag-row">
-              <text v-for="tag in displayTags" :key="tag" class="tag-pill">{{ tag }}</text>
-            </view>
-
-            <view class="wallet-box">
-              <view class="wallet-col">
-                <text class="wallet-label">钱包余额</text>
-                <text class="wallet-value">¥{{ walletBalanceText }}</text>
+              <view v-if="!isEditing" class="profile-title-wrap">
+                <text class="nickname">{{ nickname }}</text>
+                <text class="nomad-pill">{{ tagline }}</text>
               </view>
-              <view class="wallet-divider"></view>
-              <view class="wallet-col">
-                <text class="wallet-label">本月收入</text>
-                <text class="wallet-value">¥{{ walletIncomeText }}</text>
+
+              <view v-else class="profile-edit-wrap">
+                <input
+                  v-model="editingUsername"
+                  class="profile-input"
+                  maxlength="30"
+                  placeholder-class="profile-input-placeholder"
+                  placeholder="请输入昵称"
+                  type="text"
+                />
+                <input
+                  v-model="editingTagline"
+                  class="profile-input"
+                  maxlength="60"
+                  placeholder-class="profile-input-placeholder"
+                  placeholder="请输入个性签名"
+                  type="text"
+                />
+              </view>
+
+              <view class="profile-actions">
+                <view v-if="!isEditing" class="profile-btn profile-btn-edit" @click="startEditProfile">
+                  <text class="profile-btn-text">✏️ 编辑资料</text>
+                </view>
+                <view v-else class="profile-btn-group">
+                  <view class="profile-btn profile-btn-save" @click="saveProfile">
+                    <text class="profile-btn-text">{{ savingProfile ? '保存中...' : '💾 保存' }}</text>
+                  </view>
+                  <view class="profile-btn profile-btn-cancel" @click="cancelEditProfile">
+                    <text class="profile-btn-text profile-btn-text-dark">取消</text>
+                  </view>
+                </view>
+              </view>
+
+              <view class="tag-row">
+                <text v-for="tag in displayTags" :key="tag" class="tag-pill">{{ tag }}</text>
+              </view>
+
+              <view class="wallet-box">
+                <view class="wallet-col">
+                  <text class="wallet-label">钱包余额</text>
+                  <text class="wallet-value">¥{{ walletBalanceText }}</text>
+                </view>
+                <view class="wallet-divider"></view>
+                <view class="wallet-col">
+                  <text class="wallet-label">本月收入</text>
+                  <text class="wallet-value">¥{{ walletIncomeText }}</text>
+                </view>
               </view>
             </view>
           </view>
-        </view>
 
         <view class="panel">
           <text class="panel-title">旅居仪表盘</text>
@@ -67,26 +103,72 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import TabBar from '../../components/TabBar.uvue'
-import type { UserCenterData, UserMenuItem } from '../../types/user'
-import { loadUserCenterData } from '../../utils/useUser'
+import type { UserMenuItem } from '../../types/user'
 
 const loading = ref(true)
-const centerData = ref<UserCenterData | null>(null)
+const API_BASE_URL = 'http://localhost:3000'
 
-const profile = computed(() => centerData.value?.profile ?? null)
-const dashboard = computed(() => centerData.value?.dashboard ?? {
+const nickname = ref('数字游民')
+const tagline = ref('已在--旅居 0 天')
+const avatar = ref('/static/logo.png')
+const currentCity = ref('--')
+const nomadDays = ref(0)
+const displayTags = ref<string[]>(['旅居中'])
+const walletBalance = ref(0)
+const walletIncome = ref(3200)
+const resumeCompletion = ref(85)
+const favoriteCities = ref<string[]>(['鹤岗', '伊春'])
+const dashboard = ref({
   appliedJobs: 0,
   postedRooms: 0,
   joinedParties: 0
 })
+const isEditing = ref(false)
+const savingProfile = ref(false)
+const editingUsername = ref('')
+const editingTagline = ref('')
 
-const nickname = computed(() => profile.value?.nickname ?? '数字游民')
-const avatar = computed(() => profile.value?.avatar ?? '/static/logo.png')
-const currentCity = computed(() => profile.value?.current_city ?? '--')
-const nomadDays = computed(() => profile.value?.nomad_days ?? 0)
-const displayTags = computed(() => profile.value?.tags ?? [])
+interface ApiUserProfile {
+  id: number
+  username: string
+  avatar: string
+  tagline: string
+  balance: number | string
+  created_at: string
+}
+
+interface ApiUserProfileResponse {
+  ok: boolean
+  data?: ApiUserProfile
+  message?: string
+}
+
+interface ApiProfileUpdateResponse {
+  success: boolean
+  message?: string
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '' || text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+
+  return null
+}
 
 const dashboardCards = computed(() => [
   { id: 'gigs', icon: '💼', title: '搞钱', value: dashboard.value.appliedJobs },
@@ -95,12 +177,9 @@ const dashboardCards = computed(() => [
 ])
 
 const menuItems = computed<UserMenuItem[]>(() => {
-  const resumePercent = profile.value?.resume_completion ?? 85
-  const favorites = profile.value?.favorite_cities ?? []
-
   return [
-    { id: 'resume', title: '我的简历', desc: `完整度 ${resumePercent}%` },
-    { id: 'favorites', title: '收藏城市', desc: favorites.length == 0 ? '暂无收藏' : favorites.join(' · ') },
+    { id: 'resume', title: '我的简历', desc: `完整度 ${resumeCompletion.value}%` },
+    { id: 'favorites', title: '收藏城市', desc: favoriteCities.value.length == 0 ? '暂无收藏' : favoriteCities.value.join(' · ') },
     { id: 'settings', title: '系统设置', desc: '通知、隐私、账号安全' }
   ]
 })
@@ -113,8 +192,8 @@ function formatCurrency(value: number): string {
   return fixed
 }
 
-const walletBalanceText = computed(() => formatCurrency(profile.value?.wallet.balance ?? 0))
-const walletIncomeText = computed(() => formatCurrency(profile.value?.wallet.month_income ?? 0))
+const walletBalanceText = computed(() => formatCurrency(walletBalance.value))
+const walletIncomeText = computed(() => formatCurrency(walletIncome.value))
 
 const onMenuClick = (id: string) => {
   if (id == 'resume') {
@@ -130,18 +209,155 @@ const onLogout = () => {
   uni.showToast({ title: '已退出登录（模拟）', icon: 'none' })
 }
 
-const initData = async () => {
+function parseTagline(taglineText: string): { city: string; days: number } | null {
+  const text = (taglineText ?? '').trim()
+  const matched = text.match(/已在(.+?)旅居\s*(\d+)\s*天/)
+  if (matched != null) {
+    return {
+      city: matched[1] ?? '--',
+      days: Number(matched[2] ?? '0')
+    }
+  }
+  return null
+}
+
+function toNumber(value: number | string, fallback: number): number {
+  const parsed = typeof value == 'number' ? value : parseFloat(value)
+  return isNaN(parsed) ? fallback : parsed
+}
+
+function applyTagline(taglineText: string) {
+  const parsed = parseTagline(taglineText)
+  if (parsed == null) {
+    currentCity.value = '--'
+    nomadDays.value = 0
+    displayTags.value = ['旅居中', '大本营模式']
+    return
+  }
+
+  currentCity.value = parsed.city
+  nomadDays.value = parsed.days
+  displayTags.value = [`${currentCity.value}旅居`, '大本营模式']
+}
+
+function applyUserProfile(profile: ApiUserProfile) {
+  nickname.value = profile.username ?? nickname.value
+  tagline.value = profile.tagline != '' ? profile.tagline : tagline.value
+  avatar.value = profile.avatar != '' ? profile.avatar : '/static/logo.png'
+  walletBalance.value = toNumber(profile.balance, walletBalance.value)
+  applyTagline(tagline.value)
+  if (!isEditing.value) {
+    editingUsername.value = nickname.value
+    editingTagline.value = tagline.value
+  }
+}
+
+const startEditProfile = () => {
+  editingUsername.value = nickname.value
+  editingTagline.value = tagline.value
+  isEditing.value = true
+}
+
+const cancelEditProfile = () => {
+  editingUsername.value = nickname.value
+  editingTagline.value = tagline.value
+  isEditing.value = false
+}
+
+const saveProfile = async () => {
+  if (savingProfile.value) {
+    return
+  }
+
+  const nextUsername = editingUsername.value.trim()
+  const nextTagline = editingTagline.value.trim()
+  const nextAvatar = avatar.value.trim() == '' ? '/static/logo.png' : avatar.value.trim()
+  if (nextUsername == '' || nextTagline == '') {
+    uni.showToast({ title: '昵称和签名不能为空', icon: 'none' })
+    return
+  }
+
+  savingProfile.value = true
   try {
-    centerData.value = await loadUserCenterData()
+    await new Promise<void>((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/user/profile`,
+        method: 'PUT',
+        data: {
+          avatar: nextAvatar,
+          username: nextUsername,
+          tagline: nextTagline
+        },
+        success: (res) => {
+          if (res.statusCode != 200) {
+            if (res.statusCode == 404) {
+              reject('接口不存在，请重启后端服务')
+              return
+            }
+            reject(`请求失败: ${res.statusCode}`)
+            return
+          }
+          const payload = parseApiPayload<ApiProfileUpdateResponse>(res.data)
+          if (payload == null) {
+            reject('返回数据格式错误，请检查后端')
+            return
+          }
+          if (payload.success != true) {
+            reject(payload.message ?? '保存失败')
+            return
+          }
+          resolve()
+        },
+        fail: (err) => reject(err)
+      })
+    })
+
+    avatar.value = nextAvatar
+    nickname.value = nextUsername
+    tagline.value = nextTagline
+    applyTagline(nextTagline)
+    isEditing.value = false
+    uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (error) {
+    console.error('[saveProfile] failed:', error)
+    uni.showToast({ title: '保存失败，请检查后端', icon: 'none' })
+  } finally {
+    savingProfile.value = false
+  }
+}
+
+const fetchUserProfile = async () => {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/user/profile`,
+        method: 'GET',
+        success: (res) => {
+          if (res.statusCode != 200) {
+            reject(`请求失败: ${res.statusCode}`)
+            return
+          }
+          const payload = parseApiPayload<ApiUserProfileResponse>(res.data)
+          if (payload == null || !payload.ok || payload.data == null) {
+            reject(payload?.message ?? '用户信息为空')
+            return
+          }
+          applyUserProfile(payload.data)
+          resolve()
+        },
+        fail: (err) => reject(err)
+      })
+    })
+  } catch (error) {
+    console.error('[fetchUserProfile] failed:', error)
     uni.showToast({ title: '用户数据加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  initData()
+onLoad(() => {
+  fetchUserProfile()
 })
 </script>
 
@@ -215,6 +431,81 @@ onMounted(() => {
   color: #ffffff;
   font-size: 24px;
   font-weight: 900;
+}
+
+.profile-title-wrap {
+  align-items: center;
+}
+
+.profile-edit-wrap {
+  margin-top: 14px;
+  width: 100%;
+  align-items: center;
+}
+
+.profile-input {
+  width: 250px;
+  height: 38px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.profile-input:first-child {
+  margin-top: 0;
+}
+
+.profile-input-placeholder {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+}
+
+.profile-actions {
+  margin-top: 16px;
+  align-items: center;
+}
+
+.profile-btn-group {
+  flex-direction: row;
+  align-items: center;
+}
+
+.profile-btn {
+  border-radius: 16px;
+  padding: 8px 22px;
+}
+
+.profile-btn-edit {
+  background-color: rgba(255, 255, 255, 0.28);
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.profile-btn-save {
+  background-color: #2f9d66;
+}
+
+.profile-btn-cancel {
+  margin-left: 15px;
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+.profile-btn-text {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.profile-btn-text-dark {
+  color: #1f2937;
 }
 
 .nomad-pill {

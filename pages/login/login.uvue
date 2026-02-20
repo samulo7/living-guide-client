@@ -104,7 +104,8 @@ function parseApiPayload<T>(raw: unknown): T | null {
   }
   if (typeof raw == 'string') {
     const text = raw.trim()
-    if (text == '' || text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+    const first = text[0] ?? ''
+    if (text == '' || (first != '{' && first != '[')) {
       return null
     }
     try {

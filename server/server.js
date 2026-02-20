@@ -6,7 +6,9 @@ const cors = require('cors')
 const OSS = require('ali-oss')
 const authRoutes = require('./src/routes/auth')
 const userRoutes = require('./src/routes/user')
+const cityRoutes = require('./src/routes/city')
 const { pingDb } = require('./src/config/db')
+const { repairDbSchema } = require('./src/config/repairDbSchema')
 
 function cleanEnvValue(value) {
   return String(value || '')
@@ -89,13 +91,16 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
+app.use('/api/cities', cityRoutes)
 
 async function bootstrap() {
   try {
     await pingDb()
     console.log('[db] connected')
+    await repairDbSchema()
+    console.log('[db] schema checked')
   } catch (error) {
-    console.error('[db] connection failed:', error.message)
+    console.error('[db] bootstrap failed:', error.message)
     process.exit(1)
   }
 

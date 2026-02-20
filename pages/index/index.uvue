@@ -10,23 +10,26 @@
     <view class="search-section">
       <view class="search-bar">
         <text class="search-icon">🔍</text>
-        <input 
-          class="search-input" 
+        <input
+          class="search-input"
           placeholder="搜索城市 (如: 鹤岗)"
           v-model="keyword"
           @input="onSearch"
+          confirm-type="search"
+          @confirm="onSearchConfirm"
         />
+        <text class="search-btn" @click="onSearchConfirm">搜索</text>
       </view>
     </view>
 
-    <scroll-view 
-      class="quick-filter" 
-      direction="horizontal" 
+    <scroll-view
+      class="quick-filter"
+      direction="horizontal"
       :show-scrollbar="false"
     >
       <view class="filter-container">
-        <view 
-          v-for="filter in quickFilters" 
+        <view
+          v-for="filter in quickFilters"
           :key="filter.value"
           class="filter-tag"
           :class="{ active: currentFilter === filter.value }"
@@ -44,23 +47,31 @@
       <text class="loading-text">正在加载数据...</text>
     </view>
 
-    <scroll-view 
-          v-else 
-          class="city-list"
-          direction="vertical"
-        >
-          <view v-if="filteredList.length === 0" class="empty-box">
-            <text class="empty-text">没找到结果，试着换个词？</text>
-          </view>
-          
+    <scroll-view
+      v-else
+      class="city-list"
+      direction="vertical"
+    >
+      <view v-if="displayList.length === 0" class="empty-box">
+        <text class="empty-text">没找到结果，试着换个词？</text>
+      </view>
+
+      <view
+        v-for="entry in displayList"
+        :key="entry.cardData.id"
+        class="card-host"
+        :class="{ 'card-host-no-rent': !entry.hasRentData }"
+      >
           <city-card
-            v-for="item in filteredList"
-            :key="item.id"
-            :data="item"
-            @click="goToDetail(item.id)"
+            :data="entry.cardData"
+            @click="goToDetail(entry.cardData.id)"
           />
-          <view style="height: 96px;"></view>
-        </scroll-view>
+        <view v-if="!entry.hasRentData" class="no-rent-hint">
+          <text class="no-rent-text">暂无租金数据</text>
+        </view>
+      </view>
+      <view style="height: 96px;"></view>
+    </scroll-view>
 
     <tab-bar active="guide" />
   </view>
@@ -73,12 +84,20 @@ import TabBar from '../../components/TabBar.uvue'
 import type { CityItem } from '../../types/city'
 import rawCityData from '../../static/data/data.json'
 
-// 状态管理
+type QuickFilterValue = 'all' | 'under500' | 'seaside' | 'mountain' | 'lake' | 'highspeed' | 'hospitalA' | 'verified'
+
+interface DisplayCityItem {
+  cardData: CityItem
+  hasRentData: boolean
+}
+
 const allData = ref<CityItem[]>([])
 const loading = ref(true)
-const currentFilter = ref('all')
+const currentFilter = ref<QuickFilterValue>('all')
 const keyword = ref('')
+const requesting = ref(false)
 const API_BASE_URL = 'http://localhost:3000'
+let latestRequestId = 0
 
 interface ApiCitiesResponse {
   ok: boolean
@@ -118,80 +137,206 @@ function loadLocalCities(): CityItem[] {
   }
 }
 
-// 筛选配置
 const quickFilters = [
   { label: '全部', value: 'all' },
-  { label: '💰 租金<500', value: 'cheap' },
-  { label: '🌊 海边城市', value: 'seaside' },
-  { label: '🌸 四季如春', value: 'spring' },
+  { label: '💰 租金<500', value: 'under500' },
+  { label: '🌊 海边/海景', value: 'seaside' },
+  { label: '⛰️ 靠山/山景', value: 'mountain' },
+  { label: '🏞️ 湖景/河景', value: 'lake' },
+  { label: '🚄 高铁直达', value: 'highspeed' },
+  { label: '🏥 三甲医疗', value: 'hospitalA' },
   { label: '🏆 UP主实探', value: 'verified' }
-]
+] as const
 
-// 核心筛选逻辑
-const filteredList = computed(() => {
-  let result = allData.value
-
-  if (currentFilter.value === 'cheap') {
-    result = result.filter(item => item.price_rent <= 500)
-  } else if (currentFilter.value === 'seaside') {
-    result = result.filter(item => item.tags.some(tag => tag.includes('海') || tag.includes('水')))
-  } else if (currentFilter.value === 'spring') {
-    result = result.filter(item => item.tags.some(tag => tag.includes('春') || tag.includes('避暑')))
-  } else if (currentFilter.value === 'verified') {
-    result = result.filter(item => item.is_verified)
+function normalizeCityName(cityName: string): string {
+  const text = String(cityName || '').trim()
+  if (text == '') {
+    return text
   }
+  return text.split('/')[0]?.trim() || text
+}
 
-  if (keyword.value.trim() !== '') {
-    const kw = keyword.value.toLowerCase()
-    result = result.filter(item => 
-      item.city.toLowerCase().includes(kw) ||
-      item.district.toLowerCase().includes(kw) ||
-      item.tags.some(tag => tag.toLowerCase().includes(kw))
-    )
+function normalizeBuyPrice(value: string): string {
+  const text = String(value || '').trim()
+  if (text == '' || text == '//') {
+    return ''
   }
-  
-  // 价格排序
-  return [...result].sort((a, b) => a.price_rent - b.price_rent)
+  return text
+}
+
+function mapToDisplayItem(item: CityItem): DisplayCityItem {
+  const cardData: CityItem = {
+    ...item,
+    city: normalizeCityName(item.city),
+    price_buy: normalizeBuyPrice(item.price_buy)
+  }
+  return {
+    cardData,
+    hasRentData: Number(item.price_rent || 0) > 0
+  }
+}
+
+function getSortPrice(item: CityItem): number {
+  const rent = Number(item.price_rent || 0)
+  if (!Number.isFinite(rent) || rent <= 0) {
+    return Number.MAX_SAFE_INTEGER
+  }
+  return rent
+}
+
+const displayList = computed(() => {
+  const sorted = [...allData.value].sort((a, b) => {
+    const priceDiff = getSortPrice(a) - getSortPrice(b)
+    if (priceDiff != 0) {
+      return priceDiff
+    }
+    return Number(a.id || 0) - Number(b.id || 0)
+  })
+  return sorted.map(mapToDisplayItem)
 })
 
-const onQuickFilter = (value: string) => currentFilter.value = value
-const onSearch = () => {} // v-model 自动触发
-const goToDetail = (id: string) => uni.navigateTo({ url: `/pages/detail/detail?id=${id}` })
+function buildQueryString(): string {
+  const params: string[] = []
+  const trimmedKeyword = keyword.value.trim()
+  if (trimmedKeyword != '') {
+    params.push(`keyword=${encodeURIComponent(trimmedKeyword)}`)
+  }
+  if (currentFilter.value != 'all') {
+    params.push(`filter=${encodeURIComponent(currentFilter.value)}`)
+  }
+  return params.length > 0 ? `?${params.join('&')}` : ''
+}
 
-onMounted(async () => {
-  try {
-    await new Promise<void>((resolve, reject) => {
-      uni.request({
-        url: `${API_BASE_URL}/api/cities`,
-        method: 'GET',
-        success: (res) => {
-          if (res.statusCode != 200) {
-            reject(`请求失败: ${res.statusCode}`)
-            return
-          }
-          const payload = parseApiPayload<ApiCitiesResponse>(res.data)
-          if (payload == null || payload.ok != true || payload.items == null) {
-            reject(payload?.message ?? '城市数据为空')
-            return
-          }
-          allData.value = payload.items
-          resolve()
-        },
-        fail: (err) => reject(err)
-      })
+function filterLocalItems(items: CityItem[]): CityItem[] {
+  const trimmedKeyword = keyword.value.trim().toLowerCase()
+  let result = [...items]
+
+  const getLandscapeText = (item: CityItem): string => {
+    const raw = (item as any)?.landscape
+    const landscape = String(raw == null ? '' : raw)
+    const tagsText = item.tags.join(',')
+    return `${landscape},${tagsText}`
+  }
+
+  if (currentFilter.value == 'under500') {
+    result = result.filter((item) => Number(item.price_rent || 0) > 0 && Number(item.price_rent || 0) <= 500)
+  } else if (currentFilter.value == 'seaside') {
+    result = result.filter((item) => {
+      const landscapeText = getLandscapeText(item)
+      return landscapeText.includes('海') || landscapeText.includes('海景')
     })
+  } else if (currentFilter.value == 'mountain') {
+    result = result.filter((item) => {
+      const landscapeText = getLandscapeText(item)
+      return landscapeText.includes('山') || landscapeText.includes('山景')
+    })
+  } else if (currentFilter.value == 'lake') {
+    result = result.filter((item) => {
+      const landscapeText = getLandscapeText(item)
+      return landscapeText.includes('湖') || landscapeText.includes('河')
+    })
+  } else if (currentFilter.value == 'highspeed') {
+    result = result.filter((item) => {
+      const transportText = String(item.transport || '')
+      return transportText.includes('高铁') || transportText.includes('动车')
+    })
+  } else if (currentFilter.value == 'hospitalA') {
+    result = result.filter((item) => {
+      const medicalText = String(item.medical || '')
+      return medicalText.includes('三甲')
+    })
+  } else if (currentFilter.value == 'verified') {
+    result = result.filter((item) => item.is_verified)
+  }
+
+  if (trimmedKeyword != '') {
+    result = result.filter((item) => {
+      const cityText = String(item.city || '').toLowerCase()
+      const districtText = String(item.district || '').toLowerCase()
+      const tagsText = item.tags.map((tag) => String(tag || '').toLowerCase())
+      return cityText.includes(trimmedKeyword) || districtText.includes(trimmedKeyword) || tagsText.some((tag) => tag.includes(trimmedKeyword))
+    })
+  }
+
+  return result
+}
+
+async function fetchCitiesFromApi(): Promise<CityItem[]> {
+  return new Promise<CityItem[]>((resolve, reject) => {
+    uni.request({
+      url: `${API_BASE_URL}/api/cities${buildQueryString()}`,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject(`请求失败: ${res.statusCode}`)
+          return
+        }
+        const payload = parseApiPayload<ApiCitiesResponse>(res.data)
+        if (payload == null || payload.ok != true || payload.items == null) {
+          reject(payload?.message ?? '城市数据为空')
+          return
+        }
+        resolve(payload.items)
+      },
+      fail: (err) => reject(err)
+    })
+  })
+}
+
+async function loadCities(showLoadingState: boolean): Promise<void> {
+  const requestId = ++latestRequestId
+  if (showLoadingState) {
+    loading.value = true
+  }
+  requesting.value = true
+
+  try {
+    const items = await fetchCitiesFromApi()
+    if (requestId != latestRequestId) {
+      return
+    }
+    allData.value = items
   } catch (error) {
+    if (requestId != latestRequestId) {
+      return
+    }
     console.error('[index] load cities failed:', error)
     const localItems = loadLocalCities()
     if (localItems.length > 0) {
-      allData.value = localItems
+      allData.value = filterLocalItems(localItems)
       uni.showToast({ title: '后端不可用，已切换本地数据', icon: 'none' })
     } else {
       uni.showToast({ title: '城市数据加载失败', icon: 'none' })
     }
   } finally {
-    loading.value = false
+    if (requestId == latestRequestId) {
+      requesting.value = false
+      loading.value = false
+    }
   }
+}
+
+const onSearch = () => {}
+
+const onSearchConfirm = async () => {
+  if (requesting.value) {
+    return
+  }
+  await loadCities(false)
+}
+
+const onQuickFilter = async (value: QuickFilterValue) => {
+  if (currentFilter.value == value) {
+    return
+  }
+  currentFilter.value = value
+  await loadCities(false)
+}
+
+const goToDetail = (id: string) => uni.navigateTo({ url: `/pages/detail/detail?id=${id}` })
+
+onMounted(async () => {
+  await loadCities(true)
 })
 </script>
 
@@ -236,6 +381,7 @@ onMounted(async () => {
 .search-bar { background-color: #f5f5f5; height: 36px; border-radius: 18px; flex-direction: row; align-items: center; padding: 0 12px; }
 .search-icon { font-size: 14px; margin-right: 8px; }
 .search-input { flex: 1; font-size: 14px; color: #333; background-color: transparent; }
+.search-btn { font-size: 13px; color: #426B50; font-weight: bold; padding-left: 10px; }
 
 /* 滚动筛选栏 */
 .quick-filter { width: 100%; height: 50px; background-color: #fff; margin-bottom: 10px; flex-direction: row; }
@@ -253,6 +399,20 @@ onMounted(async () => {
   /* 保持原有的内边距 */
   padding: 0 16px 20px; 
 }
+
+.card-host { position: relative; }
+.card-host-no-rent :deep(.rent-wrap) { display: none; }
+.card-host-no-rent :deep(.data-row) { min-height: 20px; }
+.no-rent-hint {
+  position: absolute;
+  left: 134px;
+  bottom: 22px;
+  background-color: #FFF4E5;
+  border-radius: 10px;
+  padding: 3px 8px;
+}
+.no-rent-text { font-size: 11px; color: #B26A00; }
+
 .loading-box, .empty-box { padding: 50px 0; align-items: center; justify-content: center; }
 .loading-text, .empty-text { font-size: 14px; color: #999; }
 </style>

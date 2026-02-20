@@ -70,14 +70,53 @@
 import { ref, computed, onMounted } from 'vue'
 import CityCard from '../../components/CityCard.uvue'
 import TabBar from '../../components/TabBar.uvue'
-import { loadCityData } from '../../utils/dataLoader.ts'
 import type { CityItem } from '../../types/city'
+import rawCityData from '../../static/data/data.json'
 
 // 状态管理
 const allData = ref<CityItem[]>([])
 const loading = ref(true)
 const currentFilter = ref('all')
 const keyword = ref('')
+const API_BASE_URL = 'http://localhost:3000'
+
+interface ApiCitiesResponse {
+  ok: boolean
+  total: number
+  items?: CityItem[]
+  message?: string
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    const first = text[0] ?? ''
+    if (text == '' || (first != '{' && first != '[')) {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function loadLocalCities(): CityItem[] {
+  try {
+    const items = (rawCityData as { items?: CityItem[] }).items
+    if (Array.isArray(items)) {
+      return items
+    }
+    return []
+  } catch (error) {
+    return []
+  }
+}
 
 // 筛选配置
 const quickFilters = [
@@ -121,10 +160,36 @@ const goToDetail = (id: string) => uni.navigateTo({ url: `/pages/detail/detail?i
 
 onMounted(async () => {
   try {
-    const data = await loadCityData()
-    allData.value = data.items
-    loading.value = false
+    await new Promise<void>((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/cities`,
+        method: 'GET',
+        success: (res) => {
+          if (res.statusCode != 200) {
+            reject(`请求失败: ${res.statusCode}`)
+            return
+          }
+          const payload = parseApiPayload<ApiCitiesResponse>(res.data)
+          if (payload == null || payload.ok != true || payload.items == null) {
+            reject(payload?.message ?? '城市数据为空')
+            return
+          }
+          allData.value = payload.items
+          resolve()
+        },
+        fail: (err) => reject(err)
+      })
+    })
   } catch (error) {
+    console.error('[index] load cities failed:', error)
+    const localItems = loadLocalCities()
+    if (localItems.length > 0) {
+      allData.value = localItems
+      uni.showToast({ title: '后端不可用，已切换本地数据', icon: 'none' })
+    } else {
+      uni.showToast({ title: '城市数据加载失败', icon: 'none' })
+    }
+  } finally {
     loading.value = false
   }
 })

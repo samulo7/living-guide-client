@@ -174,7 +174,8 @@ function parseApiPayload<T>(raw: unknown): T | null {
 
   if (typeof raw == 'string') {
     const text = raw.trim()
-    if (text == '' || text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+    const first = text[0] ?? ''
+    if (text == '' || (first != '{' && first != '[')) {
       return null
     }
     try {
@@ -218,7 +219,7 @@ function getToken(): string {
   return typeof token == 'string' ? token.trim() : ''
 }
 
-function getAuthHeader(): Record<string, string> {
+function getAuthHeader(): any {
   const token = getToken()
   if (token == '') {
     return {}
@@ -376,7 +377,7 @@ const onChangeAvatar = async () => {
         url: `${API_BASE_URL}/api/user/avatar`,
         filePath,
         name: 'avatar',
-        header: getAuthHeader(),
+        header: getAuthHeader() as any,
         success: (res) => {
           const payload = parseApiPayload<ApiAvatarUploadResponse>(res.data)
           if (res.statusCode == 401) {
@@ -435,7 +436,7 @@ const saveProfile = async () => {
       uni.request({
         url: `${API_BASE_URL}/api/user/profile`,
         method: 'PUT',
-        header: getAuthHeader(),
+        header: getAuthHeader() as any,
         data: {
           avatar: nextAvatar,
           username: nextUsername,
@@ -493,7 +494,7 @@ const fetchUserProfile = async () => {
       uni.request({
         url: `${API_BASE_URL}/api/user/profile`,
         method: 'GET',
-        header: getAuthHeader(),
+        header: getAuthHeader() as any,
         success: (res) => {
           if (res.statusCode == 401) {
             reject('UNAUTHORIZED')

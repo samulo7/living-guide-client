@@ -6,7 +6,10 @@
   "main": "server.js",
   "scripts": {
     "db:init": "node scripts/init-db.js",
+    "db:repair": "node scripts/repair-db.js",
+    "db:backup": "node scripts/backup-db.js",
     "start": "node server.js",
+    "start:safe": "npm run db:backup && node server.js",
     "dev": "node server.js"
   },
   "dependencies": {

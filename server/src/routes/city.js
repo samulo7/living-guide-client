@@ -37,6 +37,7 @@ function toBool(value) {
 function mapCityRow(row) {
   const city = String(row.name || '')
   const district = String(row.location || '')
+  const landscape = String(row.landscape || '')
   const medical = String(row.medical || '')
   const transport = String(row.transport || '')
 
@@ -45,6 +46,7 @@ function mapCityRow(row) {
     city,
     district,
     title: `${city} · ${district}`,
+    landscape,
     medical,
     transport,
     cover_image: String(row.cover_image || ''),
@@ -75,6 +77,8 @@ function mapCityRow(row) {
 }
 
 router.get('/', async (req, res) => {
+  const keyword = String(req.query.keyword || '').trim()
+  const filter = String(req.query.filter || '').trim()
   const maxRent = Number.parseInt(String(req.query.maxRent || ''), 10)
   const tag = String(req.query.tag || '').trim()
   const verified = String(req.query.verified || '').trim()
@@ -91,6 +95,7 @@ router.get('/', async (req, res) => {
       editor_comment,
       is_verified,
       has_hospital_class_a,
+      landscape,
       medical,
       transport,
       lat,
@@ -99,6 +104,36 @@ router.get('/', async (req, res) => {
     WHERE 1 = 1
   `
   const params = []
+
+  if (keyword != '') {
+    sql += ' AND name LIKE ?'
+    params.push(`%${keyword}%`)
+  }
+
+  if (filter == 'under500') {
+    sql += ' AND rent_price > 0 AND rent_price <= 500'
+  } else if (filter == 'seaside') {
+    sql += ' AND (landscape LIKE ? OR landscape LIKE ?)'
+    params.push('%海%')
+    params.push('%海景%')
+  } else if (filter == 'mountain') {
+    sql += ' AND (landscape LIKE ? OR landscape LIKE ?)'
+    params.push('%山%')
+    params.push('%山景%')
+  } else if (filter == 'lake') {
+    sql += ' AND (landscape LIKE ? OR landscape LIKE ?)'
+    params.push('%湖%')
+    params.push('%河%')
+  } else if (filter == 'highspeed') {
+    sql += ' AND (transport LIKE ? OR transport LIKE ?)'
+    params.push('%高铁%')
+    params.push('%动车%')
+  } else if (filter == 'hospitalA') {
+    sql += ' AND medical LIKE ?'
+    params.push('%三甲%')
+  } else if (filter == 'verified') {
+    sql += ' AND is_verified = 1'
+  }
 
   if (!Number.isNaN(maxRent)) {
     sql += ' AND rent_price <= ?'

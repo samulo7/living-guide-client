@@ -222,4 +222,38 @@ router.get('/:id', async (req, res) => {
   }
 })
 
+router.get('/:id/houses', async (req, res) => {
+  const id = Number.parseInt(String(req.params.id || ''), 10)
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({
+      ok: false,
+      message: 'Invalid city id'
+    })
+    return
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `
+        SELECT *
+        FROM houses
+        WHERE city_id = ?
+        ORDER BY id DESC
+        LIMIT 5
+      `,
+      [id]
+    )
+    res.json({
+      ok: true,
+      data: rows
+    })
+  } catch (error) {
+    console.error('[GET /api/cities/:id/houses] failed:', error.message)
+    res.status(500).json({
+      ok: false,
+      message: 'Failed to fetch city houses'
+    })
+  }
+})
+
 module.exports = router

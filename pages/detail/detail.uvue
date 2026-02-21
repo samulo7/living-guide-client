@@ -165,13 +165,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { CityItem } from '../../types/city'
-import type { SubletItem } from '../../types/sublet'
-import { loadSublets, getRecommendedSublets, normalizeCityName } from '../../utils/useSublets'
 
 interface CityDetailResponse {
   ok: boolean
   data?: CityItem
   message?: string
+}
+
+interface CityHousesResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
+}
+
+interface CityHouseItem {
+  id: string
+  cover_image: string
+  title: string
+  district: string
+  community: string
+  price: number
+  min_duration: string
 }
 
 const API_BASE_URL = 'http://localhost:3000'
@@ -190,7 +204,7 @@ const emptyItem = {
 } as CityItem
 
 const cityItem = ref<CityItem>(emptyItem)
-const recommendedSublets = ref<SubletItem[]>([])
+const recommendedSublets = ref<CityHouseItem[]>([])
 const updateDate = ref('--')
 const imgLoadError = ref(false)
 
@@ -240,6 +254,40 @@ async function fetchCityDetail(id: string): Promise<CityItem> {
   })
 }
 
+function mapCityHouseRow(row: Record<string, unknown>): CityHouseItem {
+  return {
+    id: String(row.id ?? ''),
+    cover_image: String(row.cover_image ?? ''),
+    title: String(row.title ?? ''),
+    district: String(row.district ?? ''),
+    community: String(row.community ?? ''),
+    price: Number(row.price ?? 0),
+    min_duration: String(row.min_duration ?? '')
+  }
+}
+
+async function fetchCityHouses(cityId: string): Promise<CityHouseItem[]> {
+  return new Promise<CityHouseItem[]>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/cities/' + encodeURIComponent(cityId) + '/houses',
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<CityHousesResponse>(res.data)
+        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
+          reject(payload?.message ?? 'city houses is empty')
+          return
+        }
+        resolve(payload.data.map((item) => mapCityHouseRow(item)))
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
 onLoad(async (options) => {
   const id = String(options?.id || '').trim()
   if (id == '') {
@@ -255,18 +303,15 @@ const initData = async (id: string) => {
     cityItem.value = detail
     updateDate.value = formatUpdateDate()
     imgLoadError.value = false
-    await loadSubletRecommend(detail.city)
+    try {
+      recommendedSublets.value = await fetchCityHouses(id)
+    } catch (error) {
+      console.error('[detail] load city houses failed:', error)
+      recommendedSublets.value = []
+    }
   } catch (error) {
     console.error('[detail] load city detail failed:', error)
     uni.showToast({ title: 'Failed to load detail', icon: 'none' })
-  }
-}
-
-const loadSubletRecommend = async (cityName: string) => {
-  try {
-    const sublets = await loadSublets()
-    recommendedSublets.value = getRecommendedSublets(sublets, cityName, 2)
-  } catch (error) {
     recommendedSublets.value = []
   }
 }
@@ -369,7 +414,7 @@ const openMap = () => {
 }
 
 const goToCitySublets = () => {
-  const city = normalizeCityName(cityItem.value.city)
+  const city = String(cityItem.value.city || '').trim()
   uni.navigateTo({ url: '/pages/sublet/sublet?city=' + encodeURIComponent(city) })
 }
 

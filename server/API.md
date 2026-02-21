@@ -1,8 +1,8 @@
 # Living Guide Server API
 
 Last updated: 2026-02-21
-Last verified (local): 2026-02-21 10:58 (UTC+8)
-Last verified (UTC): 2026-02-21T02:58:12Z
+Last verified (local): 2026-02-21 13:02 (UTC+8)
+Last verified (UTC): 2026-02-21T05:02:35Z
 
 Base URL (local default): `http://localhost:3000`
 
@@ -145,6 +145,41 @@ Common errors:
 
 - `500` failed to fetch cities
 
+### `GET /api/cities/:id/houses`
+
+Fetch latest house recommendations for a city.
+
+Path params:
+
+- `id`: city id
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": 3,
+      "city_id": 1,
+      "title": "老破小但温馨，下楼就是早市，贼便宜",
+      "cover_image": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
+      "price": 150,
+      "district": "东山区",
+      "community": "东山老村",
+      "min_duration": "1个月起租",
+      "tags": "集中供暖,精装修",
+      "created_at": "2026-02-20T20:46:44.000Z"
+    }
+  ]
+}
+```
+
+Common errors:
+
+- `400` invalid city id
+- `500` failed to fetch city houses
+
 ### `GET /api/user/profile`
 
 Get current user profile (auth required).
@@ -247,6 +282,7 @@ Environment: existing service on `localhost:3000`, MySQL connected, OSS configur
 | cities_default | GET | `/api/cities` | `200` |
 | cities_under500 | GET | `/api/cities?filter=under500` | `200` |
 | cities_verified_maxRent | GET | `/api/cities?verified=true&maxRent=600` | `200` |
+| city_houses_ok | GET | `/api/cities/1/houses` | `200` |
 | profile_no_auth | GET | `/api/user/profile` | `401` |
 | profile_bad_token | GET | `/api/user/profile` | `401` |
 | profile_get_ok | GET | `/api/user/profile` | `200` |

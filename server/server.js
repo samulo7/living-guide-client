@@ -7,6 +7,7 @@ const OSS = require('ali-oss')
 const authRoutes = require('./src/routes/auth')
 const userRoutes = require('./src/routes/user')
 const cityRoutes = require('./src/routes/city')
+const houseRoutes = require('./src/routes/house')
 const { pingDb } = require('./src/config/db')
 const { repairDbSchema } = require('./src/config/repairDbSchema')
 
@@ -92,6 +93,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
 app.use('/api/cities', cityRoutes)
+app.use('/api/houses', houseRoutes)
 
 async function bootstrap() {
   try {

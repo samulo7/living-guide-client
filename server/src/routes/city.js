@@ -76,6 +76,19 @@ function mapCityRow(row) {
   }
 }
 
+function mapCityDetailRow(row) {
+  const mapped = mapCityRow(row)
+  return {
+    ...mapped,
+    name: String(row.name || ''),
+    location_text: String(row.location || ''),
+    rent_price: Number(row.rent_price || 0),
+    buy_price_desc: String(row.buy_price_desc || ''),
+    suitable_crowd: String(row.suitable_crowd || ''),
+    editor_comment: String(row.editor_comment || '')
+  }
+}
+
 router.get('/', async (req, res) => {
   const keyword = String(req.query.keyword || '').trim()
   const filter = String(req.query.filter || '').trim()
@@ -164,6 +177,47 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       ok: false,
       message: 'Failed to fetch cities'
+    })
+  }
+})
+
+router.get('/:id', async (req, res) => {
+  const id = Number.parseInt(String(req.params.id || ''), 10)
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({
+      ok: false,
+      message: 'Invalid city id'
+    })
+    return
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `
+        SELECT *
+        FROM cities
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [id]
+    )
+    if (!rows || rows.length === 0) {
+      res.status(404).json({
+        ok: false,
+        message: 'City not found'
+      })
+      return
+    }
+
+    res.json({
+      ok: true,
+      data: mapCityDetailRow(rows[0])
+    })
+  } catch (error) {
+    console.error('[GET /api/cities/:id] failed:', error.message)
+    res.status(500).json({
+      ok: false,
+      message: 'Failed to fetch city detail'
     })
   }
 })

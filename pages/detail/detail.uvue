@@ -12,8 +12,8 @@
         ></image>
         
         <view class="hero-overlay">
-          <text class="hero-city">{{ cityItem.city }}</text>
-          <text class="hero-district">{{ cityItem.district }}</text>
+          <text class="hero-city">{{ heroTitle }}</text>
+          <text class="hero-district">{{ heroSubtitle }}</text>
         </view>
         <view class="back-btn" @click="goBack">
           <text class="back-arrow">←</text>
@@ -23,13 +23,13 @@
       <view class="dashboard-card">
         <view class="dashboard-header">
           <text class="section-title">生活成本 & 配套</text>
-          <text class="update-time">更新于 {{ updateDate }}</text>
+          <text class="update-time">👉 更新于 {{ updateDate }}</text>
         </view>
         
         <view class="stats-grid">
           <view class="stat-item">
             <text class="stat-label">月租金</text>
-            <text class="stat-value price">¥{{ cityItem.price_rent }}</text>
+            <text class="stat-value price" v-if="rentPriceDisplay">{{ rentPriceDisplay }}</text>
           </view>
           <view class="stat-item">
             <text class="stat-label">买房</text>
@@ -37,7 +37,7 @@
           </view>
           <view class="stat-item">
             <text class="stat-label">交通</text>
-            <text class="stat-value">{{ transportSummary }}</text>
+            <text class="stat-value" v-if="transportText">{{ transportText }}</text>
           </view>
         </view>
 
@@ -49,18 +49,16 @@
 
       <view class="content-section">
         
-        <view class="section-title-row">
-            <text class="section-title-text">🏥 医疗环境评估</text>
-        </view>
+        
         <view class="medical-card" :class="medicalInfo['bgClass']">
           <view class="medical-header">
             <text class="medical-icon">{{ medicalInfo['icon'] }}</text>
-            <text class="medical-title">{{ medicalInfo['title'] }}</text>
+            <text class="medical-title">医疗环境评估</text>
           </view>
-          <text class="medical-desc">{{ medicalInfo['desc'] }}</text>
-          <view class="medical-divider"></view>
-          <text class="medical-raw">配置详情: {{ cityItem.medical }}</text>
-          <text class="medical-tips">{{ medicalInfo['tips'] }}</text>
+          <text class="medical-desc" v-if="medicalInfo['desc']">{{ medicalInfo['desc'] }}</text>
+          <view class="medical-divider" v-if="medicalText || suitableCrowdText"></view>
+          <text class="medical-raw" v-if="medicalText">医疗条件：{{ medicalText }}</text>
+          <text class="medical-tips" v-if="suitableCrowdText">适宜人群：{{ suitableCrowdText }}</text>
         </view>
 
         <view class="guru-card" v-if="guruQuote">
@@ -71,12 +69,14 @@
           <text class="block-text">{{ guruQuote }}</text>
         </view>
 
-        <view class="content-block climate-block" v-if="climateInfo">
+        <view class="content-block climate-block" v-if="climateTokens.length > 0">
           <view class="block-header">
             <text class="block-icon">🌤️</text>
             <text class="block-title">气候体感</text>
           </view>
-          <text class="block-text">{{ climateInfo }}</text>
+          <view class="climate-tags">
+            <text class="climate-tag" v-for="(item, index) in climateTokens" :key="index">{{ item }}</text>
+          </view>
         </view>
 
         <view class="content-block cons-block" v-if="consInfo">
@@ -89,7 +89,7 @@
 
         <view class="sublet-block">
           <view class="sublet-head">
-            <text class="sublet-title">🏠 本市房源推荐</text>
+            <text class="sublet-title">本市房源推荐</text>
             <text class="sublet-more" @click="goToCitySublets">查看全部 ></text>
           </view>
           <view v-if="recommendedSublets.length === 0" class="sublet-empty">
@@ -164,44 +164,102 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { loadCityData } from '../../utils/dataLoader.ts'
 import type { CityItem } from '../../types/city'
 import type { SubletItem } from '../../types/sublet'
 import { loadSublets, getRecommendedSublets, normalizeCityName } from '../../utils/useSublets'
 
+interface CityDetailResponse {
+  ok: boolean
+  data?: CityItem
+  message?: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+
 const emptyItem = {
-  id: '', city: '加载中...', district: '', title: '',
-  price_rent: 0, price_buy: '', tags: [] as string[], 
-  medical: '', transport: '', cover_image: '', is_verified: false,
+  id: '', city: '', district: '', title: '',
+  name: '', location_text: '',
+  price_rent: 0, price_buy: '', tags: [] as string[],
+  medical: '', transport: '', landscape: '',
+  suitable_crowd: '', editor_comment: '',
+  cover_image: '', is_verified: false,
   detail: { guru_comment: '', climate_info: '', cons: '', medical_desc: '', transport_desc: '' },
   radar_data: { cost: 0, medical: 0, transport: 0, climate: 0, fun: 0 },
   location: { lat: 0, lng: 0 },
-  has_hospital_class_a: false 
+  has_hospital_class_a: false
 } as CityItem
 
 const cityItem = ref<CityItem>(emptyItem)
 const recommendedSublets = ref<SubletItem[]>([])
-const updateDate = ref('2026.01')
-// ✅ 修改点 2：新增图片加载错误状态
+const updateDate = ref('--')
 const imgLoadError = ref(false)
 
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function formatUpdateDate(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return String(now.getFullYear()) + '.' + month
+}
+
+async function fetchCityDetail(id: string): Promise<CityItem> {
+  return new Promise<CityItem>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/cities/' + encodeURIComponent(id),
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<CityDetailResponse>(res.data)
+        if (payload == null || payload.ok != true || payload.data == null) {
+          reject(payload?.message ?? 'city detail is empty')
+          return
+        }
+        resolve(payload.data)
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
 onLoad(async (options) => {
-  const id = options['id']
-  if (id != null) { await initData(id as string) }
+  const id = String(options?.id || '').trim()
+  if (id == '') {
+    uni.showToast({ title: 'Invalid city id', icon: 'none' })
+    return
+  }
+  await initData(id)
 })
 
 const initData = async (id: string) => {
   try {
-    const data = await loadCityData()
-    updateDate.value = data.update_date
-    const found = data.items.find((item: CityItem): boolean => item.id == id)
-    if (found != null) { 
-      cityItem.value = found 
-      // 每次加载新数据，重置错误状态
-      imgLoadError.value = false
-      await loadSubletRecommend(found.city)
-    }
-  } catch (e) { console.error('加载详情失败', e) }
+    const detail = await fetchCityDetail(id)
+    cityItem.value = detail
+    updateDate.value = formatUpdateDate()
+    imgLoadError.value = false
+    await loadSubletRecommend(detail.city)
+  } catch (error) {
+    console.error('[detail] load city detail failed:', error)
+    uni.showToast({ title: 'Failed to load detail', icon: 'none' })
+  }
 }
 
 const loadSubletRecommend = async (cityName: string) => {
@@ -213,44 +271,90 @@ const loadSubletRecommend = async (cityName: string) => {
   }
 }
 
-// ✅ 修改点 3：智能封面图逻辑
-const coverUrl = computed((): string => {
-  // 1. 先计算一个兜底的随机图 (1.jpg ~ 4.jpg)
-  let idNum = 1
-  try { 
-    const str = cityItem.value.id
-    const parsed = parseInt(str)
-    if (!isNaN(parsed)) idNum = parsed
-  } catch(e){}
-  const index = (idNum % 4) + 1
-  const fallbackUrl = `/static/images/${index}.jpg`
+const fullCityName = computed((): string => {
+  const rawName = String(cityItem.value.name || '').trim()
+  if (rawName != '') {
+    return rawName
+  }
+  return String(cityItem.value.city || '').trim()
+})
 
-  // 2. 如果发生了加载错误，直接返回兜底图
+const heroTitle = computed((): string => {
+  const text = fullCityName.value
+  if (text == '') {
+    return 'Loading...'
+  }
+  const parts = text.split('/')
+  return parts[0]?.trim() || text
+})
+
+const heroSubtitle = computed((): string => {
+  const text = fullCityName.value
+  const parts = text.split('/')
+  if (parts.length > 1) {
+    const sub = parts.slice(1).join('/').trim()
+    if (sub != '') {
+      return sub
+    }
+  }
+  const locationText = String(cityItem.value.location_text || '').trim()
+  if (locationText != '') {
+    return locationText
+  }
+  return String(cityItem.value.district || '').trim()
+})
+
+function sanitizeText(value: unknown): string {
+  const text = String(value ?? '').trim()
+  if (text == '') {
+    return ''
+  }
+  const lower = text.toLowerCase()
+  if (lower == 'n/a' || lower == 'null' || lower == 'undefined') {
+    return ''
+  }
+  return text
+}
+function splitTokens(value: string): string[] {
+  return value
+    .split(/[\/\s、,，|·]+/)
+    .map((item) => sanitizeText(item))
+    .filter((item) => item != '')
+}
+const rentPriceDisplay = computed((): string => {
+  const value = Number(cityItem.value.price_rent || 0)
+  if (!Number.isFinite(value) || value <= 0) {
+    return ''
+  }
+  return '¥' + value
+})
+const transportText = computed((): string => sanitizeText(cityItem.value.transport))
+const medicalText = computed((): string => sanitizeText(cityItem.value.medical))
+const suitableCrowdText = computed((): string => sanitizeText(cityItem.value.suitable_crowd))
+const coverUrl = computed((): string => {
+  let idNum = 1
+  try {
+    const parsed = Number.parseInt(String(cityItem.value.id || '1'), 10)
+    if (!Number.isNaN(parsed)) {
+      idNum = parsed
+    }
+  } catch (error) {
+    idNum = 1
+  }
+
+  const fallbackUrl = '/static/images/' + ((idNum % 4) + 1) + '.jpg'
   if (imgLoadError.value) {
     return fallbackUrl
   }
-
-  // 3. 如果有配置图片，且不为空，尝试显示配置的图片
-  if (cityItem.value.cover_image && cityItem.value.cover_image.trim() !== "") {
+  if (cityItem.value.cover_image && cityItem.value.cover_image.trim() != '') {
     return cityItem.value.cover_image
   }
-
-  // 4. 默认返回兜底图
   return fallbackUrl
 })
 
-// ✅ 修改点 4：图片加载失败的回调
 const onImageError = () => {
-  console.log('⚠️ 图片加载失败，已自动切换为示例图')
   imgLoadError.value = true
 }
-
-const transportSummary = computed(() => {
-  const t = cityItem.value.transport || ''
-  if (t.includes('高铁')) return '高铁直达'
-  if (t.includes('机场')) return '有机场'
-  return '火车站'
-})
 
 const hasLocation = computed((): boolean => {
   const loc = cityItem.value.location
@@ -259,49 +363,92 @@ const hasLocation = computed((): boolean => {
 
 const openMap = () => {
   const loc = cityItem.value.location
-  const name = cityItem.value.city + cityItem.value.district
-  const url = `https://uri.amap.com/marker?position=${loc.lng},${loc.lat}&name=${name}&coordinate=gaode&callnative=1`
-  uni.navigateTo({ url: `/pages/webview/webview?url=${encodeURIComponent(url)}` })
+  const name = heroTitle.value + heroSubtitle.value
+  const url = 'https://uri.amap.com/marker?position=' + loc.lng + ',' + loc.lat + '&name=' + name + '&coordinate=gaode&callnative=1'
+  uni.navigateTo({ url: '/pages/webview/webview?url=' + encodeURIComponent(url) })
 }
 
 const goToCitySublets = () => {
   const city = normalizeCityName(cityItem.value.city)
-  uni.navigateTo({ url: `/pages/sublet/sublet?city=${encodeURIComponent(city)}` })
+  uni.navigateTo({ url: '/pages/sublet/sublet?city=' + encodeURIComponent(city) })
 }
 
 const goToRoomDetail = (id: string) => {
-  uni.navigateTo({ url: `/pages/sublet/detail?id=${id}` })
+  uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
 }
 
-const guruQuote = computed(() => cityItem.value.detail?.guru_comment || '')
-const climateInfo = computed(() => cityItem.value.detail?.climate_info || '')
+const guruQuote = computed((): string => {
+  const editorComment = String(cityItem.value.editor_comment || '').trim()
+  if (editorComment != '') {
+    return editorComment
+  }
+  return String(cityItem.value.detail?.guru_comment || '').trim()
+})
+
+const climateTokens = computed((): string[] => {
+  const sourceTexts: string[] = []
+
+  const landscape = sanitizeText(cityItem.value.landscape)
+  if (landscape != '') {
+    sourceTexts.push(landscape)
+  }
+
+  const tags = Array.isArray(cityItem.value.tags) ? cityItem.value.tags : []
+  tags.forEach((tag) => {
+    const cleaned = sanitizeText(tag)
+    if (cleaned != '') {
+      sourceTexts.push(cleaned)
+    }
+  })
+
+  const seen = new Set<string>()
+  const result: string[] = []
+  sourceTexts.forEach((item) => {
+    splitTokens(item).forEach((token) => {
+      if (!seen.has(token)) {
+        seen.add(token)
+        result.push(token)
+      }
+    })
+  })
+  return result
+})
+
 const consInfo = computed(() => cityItem.value.detail?.cons || '')
 
 const medicalInfo = computed(() => {
-  if (!cityItem.value) return { bgClass: '', icon: '', title: '', desc: '', tips: '' }
-  const has3A = cityItem.value.has_hospital_class_a
-  if (has3A) {
-    return { bgClass: 'bg-green', icon: '✅', title: '医疗资源：完善 (三甲覆盖)', desc: '区域内配有三甲医院，医疗硬件条件较好。', tips: '💡 适宜人群：全龄段，包含老人、慢性病人群或追求安全感的独居者。' }
-  } else {
-    return { bgClass: 'bg-gray', icon: '⚠️', title: '医疗资源：基础保障', desc: '暂未收录三甲医院信息，以社区/县级医院为主。', tips: '💡 适宜人群：身体健康的青壮年。\n⚠️ 注意：如需长期居住，建议自备常用药。' }
+  if (!cityItem.value) {
+    return { bgClass: '', icon: '', title: '', desc: '' }
+  }
+  if (cityItem.value.has_hospital_class_a) {
+    return {
+      bgClass: 'bg-green',
+      icon: '\u2705',
+      title: '医疗资源：完善（三甲覆盖）',
+      desc: medicalText.value != '' ? `医疗条件：${medicalText.value}` : ''
+    }
+  }
+  return {
+    bgClass: 'bg-gray',
+    icon: '\u26A0\uFE0F',
+    title: '医疗资源：基础保障',
+    desc: medicalText.value != '' ? `医疗条件：${medicalText.value}` : ''
   }
 })
 
 const goBack = () => uni.navigateBack({})
 
-// --- 弹窗逻辑 ---
 const showModal = ref(false)
 const feedbackType = ref('pitfall')
 const feedbackContent = ref('')
 
 const placeholderText = computed(() => {
   if (feedbackType.value === 'pitfall') {
-    return '例如：冬天暖气不足、夏天蚊虫太多、快递不包邮...（您的吐槽将帮助更多人）'
+    return 'e.g. heating weak in winter, many mosquitos in summer, shipping expensive'
   } else if (feedbackType.value === 'price') {
-    return '例如：现在房租涨价了，大概 800/月...'
-  } else {
-    return '请详细描述您的问题...'
+    return 'e.g. current rent is around 800/month'
   }
+  return 'Please describe the issue'
 })
 
 const openFeedbackModal = () => {
@@ -310,23 +457,23 @@ const openFeedbackModal = () => {
   feedbackContent.value = ''
 }
 
-const closeModal = () => { showModal.value = false }
+const closeModal = () => {
+  showModal.value = false
+}
 
 const submitFeedback = () => {
   if (feedbackContent.value.trim() === '') {
-    uni.showToast({ title: '请填写描述内容', icon: 'none' })
+    uni.showToast({ title: 'Please enter details', icon: 'none' })
     return
   }
-  uni.showLoading({ title: '提交中...', mask: true })
+  uni.showLoading({ title: 'Submitting...', mask: true })
   setTimeout(() => {
     uni.hideLoading()
-    console.log('📝 [新用户投稿] ------------------------------')
-    console.log('城市:', cityItem.value.city)
-    console.log('类型:', feedbackType.value === 'pitfall' ? '补充槽点' : '其他')
-    console.log('内容:', feedbackContent.value)
-    console.log('--------------------------------------------')
+    console.log('[feedback] city:', cityItem.value.city)
+    console.log('[feedback] type:', feedbackType.value)
+    console.log('[feedback] content:', feedbackContent.value)
     showModal.value = false
-    uni.showToast({ title: '感谢提交！审核通过后将更新至指南', icon: 'success', duration: 3000 })
+    uni.showToast({ title: 'Thanks, we will review it', icon: 'success', duration: 3000 })
     feedbackContent.value = ''
     feedbackType.value = 'pitfall'
   }, 1000)
@@ -385,7 +532,7 @@ const submitFeedback = () => {
 .medical-raw { font-size: 12px; color: #999; margin-bottom: 8px; }
 .medical-tips { font-size: 13px; color: #666; background-color: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; line-height: 1.6; }
 
-/* --- ✅ 小编点评 (独立类名，确保不被污染) --- */
+/* --- 📝 小编点评 (独立类名，确保不被污染) --- */
 .guru-card {
  background-color: #F0F4F8;  /* 柔和的蓝灰色 */
    border-radius: 12px;
@@ -409,6 +556,17 @@ const submitFeedback = () => {
 /* 气候体感 (蓝) */
 .climate-block { background-color: #F0F9FF; border: 1px solid #E1F5FE; }
 .climate-block .block-title, .climate-block .block-icon { color: #0288D1; }
+.climate-tags { flex-direction: row; flex-wrap: wrap; }
+.climate-tag {
+  font-size: 12px;
+  color: #0277BD;
+  background-color: rgba(2, 136, 209, 0.12);
+  border: 1px solid rgba(2, 136, 209, 0.22);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
 
 /* 避坑指南 (黄) */
 .cons-block { background-color: #FFFBE6; border: 1px solid #FFE58F; border-radius: 12px; padding: 16px; margin-bottom: 16px; margin-top: 24px; }

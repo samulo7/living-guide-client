@@ -333,7 +333,13 @@ const onQuickFilter = async (value: QuickFilterValue) => {
   await loadCities(false)
 }
 
-const goToDetail = (id: string) => uni.navigateTo({ url: `/pages/detail/detail?id=${id}` })
+const goToDetail = (id: string | number) => {
+  const cityId = String(id || '').trim()
+  if (cityId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/detail/detail?id=' + encodeURIComponent(cityId) })
+}
 
 onMounted(async () => {
   await loadCities(true)

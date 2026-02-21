@@ -1,5 +1,3 @@
-// 文件: /types/city.uts
-
 export interface RadarData {
   cost: number
   medical: number
@@ -26,17 +24,16 @@ export interface CityItem {
   city: string
   district: string
   title: string
-  
-  // ✅ 核心字段：详情页展示用的文字 (例如 "三甲医院")
+  name?: string
+  location_text?: string
   medical: string
   transport: string
-  
+  landscape?: string
+  suitable_crowd?: string
+  editor_comment?: string
   cover_image: string
   is_verified: boolean
-  
-  // ✅ 核心字段：列表页判断绿标用的开关 (true/false)
-  has_hospital_class_a: boolean 
-  
+  has_hospital_class_a: boolean
   price_rent: number
   price_buy: string
   tags: string[]

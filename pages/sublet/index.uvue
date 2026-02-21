@@ -1,0 +1,434 @@
+<template>
+  <view class="page">
+    <view class="hero">
+      <text class="hero-title">安家大厅</text>
+      <text class="hero-subtitle">全网低价房源，从这里开始躺平</text>
+      <view class="hero-tips">
+        <text class="hero-tip">价格升序</text>
+        <text class="hero-tip">真实城市</text>
+        <text class="hero-tip">随时看房</text>
+      </view>
+    </view>
+
+    <scroll-view class="city-scroll" direction="horizontal" :show-scrollbar="false">
+      <view class="city-wrap">
+        <view
+          v-for="city in cityOptions"
+          :key="city.value"
+          class="city-chip"
+          :class="{ 'city-chip-active': currentCity == city.value }"
+          @click="selectCity(city.value)"
+        >
+          <text class="city-chip-text" :class="{ 'city-chip-text-active': currentCity == city.value }">
+            {{ city.label }}
+          </text>
+        </view>
+        <view style="width: 12px;"></view>
+      </view>
+    </scroll-view>
+
+    <scroll-view class="list-scroll" direction="vertical">
+      <view v-if="loading" class="state-wrap">
+        <text class="state-text">正在加载房源...</text>
+      </view>
+
+      <view v-else-if="houseList.length == 0" class="state-wrap">
+        <text class="state-text">当前城市暂无房源</text>
+      </view>
+
+      <view v-else class="card-list">
+        <view
+          class="house-card"
+          v-for="room in houseList"
+          :key="room.id"
+          @click="goDetail(room.id)"
+        >
+          <view class="card-image-wrap">
+            <image class="card-image" :src="coverUrl(room.cover_image)" mode="aspectFill"></image>
+            <text class="green-badge">低价优选</text>
+            <text class="price-badge">¥{{ priceText(room.price) }}/月</text>
+          </view>
+
+          <view class="card-content">
+            <text class="card-title">{{ room.title }}</text>
+            <text class="card-location">📍 {{ room.city_name }} · {{ room.district }}</text>
+            <view class="tag-row" v-if="splitTags(room.tags).length > 0">
+              <text
+                class="tag-chip"
+                v-for="(tag, index) in splitTags(room.tags).slice(0, 3)"
+                :key="room.id + '-' + index"
+              >
+                {{ tag }}
+              </text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 18px;"></view>
+    </scroll-view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+
+interface HouseListResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
+}
+
+interface HouseItem {
+  id: string
+  city_id: string
+  city_name: string
+  title: string
+  cover_image: string
+  price: number
+  district: string
+  tags: string
+}
+
+interface CityOption {
+  value: string
+  label: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+
+const loading = ref(true)
+const houseList = ref<HouseItem[]>([])
+const cityOptions = ref<CityOption[]>([{ value: 'all', label: '全部城市' }])
+const currentCity = ref('all')
+const cityQuery = ref('')
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function mapHouseRow(row: Record<string, unknown>): HouseItem {
+  return {
+    id: String(row.id ?? ''),
+    city_id: String(row.city_id ?? ''),
+    city_name: String(row.city_name ?? ''),
+    title: String(row.title ?? ''),
+    cover_image: String(row.cover_image ?? ''),
+    price: Number(row.price ?? 0),
+    district: String(row.district ?? ''),
+    tags: String(row.tags ?? '')
+  }
+}
+
+async function fetchHouses(cityId: string): Promise<HouseItem[]> {
+  return new Promise<HouseItem[]>((resolve, reject) => {
+    const query = cityId != 'all' ? '?city_id=' + encodeURIComponent(cityId) : ''
+    uni.request({
+      url: API_BASE_URL + '/api/houses' + query,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<HouseListResponse>(res.data)
+        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
+          reject(payload?.message ?? 'houses is empty')
+          return
+        }
+        resolve(payload.data.map((item) => mapHouseRow(item)))
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+function buildCityOptions(rows: HouseItem[]) {
+  const map = new Map<string, string>()
+  rows.forEach((item) => {
+    const id = String(item.city_id || '').trim()
+    const name = String(item.city_name || '').trim()
+    if (id != '' && name != '' && !map.has(id)) {
+      map.set(id, name)
+    }
+  })
+
+  const options: CityOption[] = [{ value: 'all', label: '全部城市' }]
+  map.forEach((label, value) => {
+    options.push({ value, label })
+  })
+  cityOptions.value = options
+}
+
+function splitTags(rawTags: string): string[] {
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[、,，;；|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function priceText(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '--'
+  }
+  return String(Math.round(value))
+}
+
+function coverUrl(value: string): string {
+  const text = String(value || '').trim()
+  if (text != '') {
+    return text
+  }
+  return '/static/images/2.jpg'
+}
+
+function goDetail(id: string) {
+  uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
+}
+
+async function loadHouses(cityId: string) {
+  loading.value = true
+  try {
+    houseList.value = await fetchHouses(cityId)
+  } catch (error) {
+    console.error('[sublet-index] load houses failed:', error)
+    houseList.value = []
+    uni.showToast({ title: '加载房源失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+async function selectCity(cityId: string) {
+  if (currentCity.value == cityId) {
+    return
+  }
+  currentCity.value = cityId
+  await loadHouses(cityId)
+}
+
+onLoad(async (options) => {
+  const city = options?.city
+  if (city != null) {
+    cityQuery.value = decodeURIComponent(String(city)).trim()
+  }
+
+  loading.value = true
+  try {
+    const allRows = await fetchHouses('all')
+    buildCityOptions(allRows)
+    let filtered = allRows
+    if (cityQuery.value != '') {
+      const matched = cityOptions.value.find((item) => {
+        if (item.value == 'all') {
+          return false
+        }
+        const label = String(item.label || '').trim()
+        if (label == '') {
+          return false
+        }
+        return label.includes(cityQuery.value) || cityQuery.value.includes(label)
+      })
+      if (matched != null) {
+        currentCity.value = matched.value
+        filtered = allRows.filter((item) => item.city_id == matched.value)
+      }
+    }
+    houseList.value = filtered
+  } catch (error) {
+    console.error('[sublet-index] init failed:', error)
+    houseList.value = []
+    cityOptions.value = [{ value: 'all', label: '全部城市' }]
+    uni.showToast({ title: '加载房源失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f6f6f3;
+}
+
+.hero {
+  padding: 52px 16px 18px;
+  background-image: linear-gradient(135deg, #ffe7d6 0%, #fbe5d8 40%, #f4ebff 100%);
+}
+
+.hero-title {
+  font-size: 30px;
+  color: #1f2937;
+  font-weight: 900;
+}
+
+.hero-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.hero-tips {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.hero-tip {
+  margin-right: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #7f1d1d;
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.26);
+  background-color: rgba(255, 255, 255, 0.75);
+}
+
+.city-scroll {
+  height: 54px;
+  background-color: #ffffff;
+}
+
+.city-wrap {
+  flex-direction: row;
+  align-items: center;
+  padding: 9px 14px;
+}
+
+.city-chip {
+  margin-right: 8px;
+  border-radius: 16px;
+  padding: 6px 12px;
+  background-color: #f3f4f6;
+  border: 1px solid transparent;
+}
+
+.city-chip-active {
+  background-color: #ecfdf3;
+  border-color: #16a34a;
+}
+
+.city-chip-text {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.city-chip-text-active {
+  color: #166534;
+  font-weight: 700;
+}
+
+.list-scroll {
+  height: calc(100vh - 168px);
+  padding: 12px 14px 0;
+}
+
+.state-wrap {
+  padding-top: 88px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+.house-card {
+  margin-bottom: 14px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.card-image-wrap {
+  position: relative;
+  height: 188px;
+}
+
+.card-image {
+  width: 100%;
+  height: 100%;
+}
+
+.green-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  font-size: 11px;
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 999px;
+  background-color: rgba(34, 197, 94, 0.92);
+  padding: 5px 10px;
+}
+
+.price-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: 900;
+  border-radius: 999px;
+  background-image: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+  padding: 7px 12px;
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.32);
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.card-title {
+  font-size: 17px;
+  line-height: 24px;
+  color: #111827;
+  font-weight: 900;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.card-location {
+  margin-top: 7px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.tag-row {
+  margin-top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #475569;
+  border-radius: 999px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 4px 9px;
+}
+</style>

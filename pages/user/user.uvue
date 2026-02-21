@@ -107,13 +107,11 @@
       </view>
     </scroll-view>
 
-    <tab-bar active="user" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import TabBar from '../../components/TabBar.uvue'
 import type { UserMenuItem } from '../../types/user'
 
 const loading = ref(true)

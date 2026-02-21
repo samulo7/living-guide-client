@@ -42,14 +42,12 @@
       <view style="height: 96px;"></view>
     </scroll-view>
 
-    <tab-bar active="gigs" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import JobCard from '../../components/JobCard.uvue'
-import TabBar from '../../components/TabBar.uvue'
 import type { JobItem } from '../../types/job'
 import { loadJobs, getAllJobTags, filterJobsByTag, getSurvivalCityById, calcCoveragePercent, calcCityLivingCost } from '../../utils/useJobs'
 

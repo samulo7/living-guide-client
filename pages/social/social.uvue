@@ -43,14 +43,12 @@
       <text class="fab-text">+</text>
     </view>
 
-    <tab-bar active="social" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ActivityCard from '../../components/ActivityCard.uvue'
-import TabBar from '../../components/TabBar.uvue'
 import type { ActivityItem } from '../../types/social'
 import { loadActivities, sortActivitiesByDistance } from '../../utils/useSocial'
 

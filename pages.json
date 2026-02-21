@@ -37,9 +37,9 @@
       }
     },
     {
-      "path": "pages/sublet/sublet",
+      "path": "pages/sublet/index",
       "style": {
-        "navigationBarTitleText": "流浪转租",
+        "navigationBarTitleText": "安家大厅",
         "navigationStyle": "custom"
       }
     },
@@ -76,6 +76,44 @@
     "navigationBarTitleText": "躺平旅居指南",
     "navigationBarBackgroundColor": "#F8F8F8",
     "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "color": "#8B8B8B",
+    "selectedColor": "#1F8E4F",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "static/tabbar/home.svg",
+        "selectedIconPath": "static/tabbar/home-active.svg"
+      },
+      {
+        "pagePath": "pages/sublet/index",
+        "text": "安家",
+        "iconPath": "static/tabbar/house.svg",
+        "selectedIconPath": "static/tabbar/house-active.svg"
+      },
+      {
+        "pagePath": "pages/gigs/gigs",
+        "text": "搞钱",
+        "iconPath": "static/tabbar/money.svg",
+        "selectedIconPath": "static/tabbar/money-active.svg"
+      },
+      {
+        "pagePath": "pages/social/social",
+        "text": "搭子",
+        "iconPath": "static/tabbar/social.svg",
+        "selectedIconPath": "static/tabbar/social-active.svg"
+      },
+      {
+        "pagePath": "pages/user/user",
+        "text": "我的",
+        "iconPath": "static/tabbar/user.svg",
+        "selectedIconPath": "static/tabbar/user-active.svg"
+      }
+    ]
   },
   "uniIdRouter": {}
 }

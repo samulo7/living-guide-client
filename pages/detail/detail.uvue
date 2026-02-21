@@ -415,7 +415,7 @@ const openMap = () => {
 
 const goToCitySublets = () => {
   const city = String(cityItem.value.city || '').trim()
-  uni.navigateTo({ url: '/pages/sublet/sublet?city=' + encodeURIComponent(city) })
+  uni.navigateTo({ url: '/pages/sublet/index?city=' + encodeURIComponent(city) })
 }
 
 const goToRoomDetail = (id: string) => {

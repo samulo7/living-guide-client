@@ -1,20 +1,18 @@
 <template>
   <view class="page">
     <scroll-view class="scroll-content" direction="vertical">
+      
       <view class="hero">
         <image class="hero-image" :src="coverUrl" mode="aspectFill" @error="onImageError"></image>
         <view class="hero-overlay"></view>
-
         <view class="hero-top">
           <view class="back-btn" @click="goBack">
             <text class="back-icon">←</text>
             <text class="back-text">返回</text>
           </view>
         </view>
-
         <view class="hero-bottom">
           <text class="hero-badge">精品房源</text>
-          <text class="hero-location">{{ locationText }}</text>
         </view>
       </view>
 
@@ -35,25 +33,39 @@
         </view>
       </view>
 
-      <view class="info-card">
-        <text class="section-title">房源信息</text>
-        <view class="meta-list">
-          <view class="meta-row">
-            <text class="meta-key">房源编号</text>
-            <text class="meta-value">#{{ house.id }}</text>
-          </view>
-          <view class="meta-row">
-            <text class="meta-key">所属城市ID</text>
-            <text class="meta-value">{{ house.city_id }}</text>
-          </view>
-          <view class="meta-row" v-if="house.created_at != ''">
-            <text class="meta-key">发布时间</text>
-            <text class="meta-value">{{ createdText }}</text>
-          </view>
+      <view class="content-block specs-grid">
+        <view class="spec-item">
+          <text class="spec-value">{{ house.layout || '1室1厅' }}</text>
+          <text class="spec-label">户型</text>
+        </view>
+        <view class="spec-item">
+          <text class="spec-value">{{ house.area || '--' }}㎡</text>
+          <text class="spec-label">面积</text>
+        </view>
+        <view class="spec-item">
+          <text class="spec-value">集中供暖</text>
+          <text class="spec-label">供暖方式</text>
         </view>
       </view>
 
+      <view class="content-block description-block">
+        <text class="desc-title">房屋介绍</text>
+        <text class="desc-content">{{ house.description || '房东很懒，暂时没有留下描述~' }}</text>
+      </view>
+
+      <view class="safety-tip">
+        <text class="safety-icon">🛡️</text>
+        <text class="safety-text">平台温馨提示：看房确认前请勿提前支付任何定金或租金，警惕网络诈骗。</text>
+      </view>
+
+      <view class="listing-footer-divider">
+        <view class="divider-line"></view>
+        <text class="footer-text">发布于 {{ house.created_at ? String(house.created_at).slice(0, 10) : '近期' }}</text>
+        <view class="divider-line"></view>
+      </view>
+
       <view style="height: 120px;"></view>
+      
     </scroll-view>
 
     <view class="action-bar">
@@ -80,6 +92,7 @@ interface HouseDetailResponse {
 interface HouseItem {
   id: string
   city_id: string
+  city_name: string
   title: string
   cover_image: string
   price: number
@@ -88,21 +101,18 @@ interface HouseItem {
   min_duration: string
   tags: string
   created_at: string
+  layout: string
+  area: string
+  description: string
 }
 
 const API_BASE_URL = 'http://localhost:3000'
 
 const emptyHouse: HouseItem = {
-  id: '',
-  city_id: '',
-  title: '加载中...',
-  cover_image: '',
-  price: 0,
-  district: '',
-  community: '',
-  min_duration: '',
-  tags: '',
-  created_at: ''
+  id: '', city_id: '', city_name: '', title: '加载中...',
+  cover_image: '', price: 0, district: '', community: '',
+  min_duration: '', tags: '', created_at: '',
+  layout: '', area: '', description: ''
 }
 
 const house = ref<HouseItem>(emptyHouse)
@@ -110,19 +120,11 @@ const isFavorite = ref(false)
 const imgLoadError = ref(false)
 
 function parseApiPayload<T>(raw: unknown): T | null {
-  if (raw != null && typeof raw == 'object') {
-    return raw as T
-  }
+  if (raw != null && typeof raw == 'object') return raw as T
   if (typeof raw == 'string') {
     const text = raw.trim()
-    if (text == '') {
-      return null
-    }
-    try {
-      return JSON.parse<T>(text)
-    } catch (error) {
-      return null
-    }
+    if (text == '') return null
+    try { return JSON.parse<T>(text) } catch (error) { return null }
   }
   return null
 }
@@ -131,6 +133,7 @@ function mapHouseRow(row: Record<string, unknown>): HouseItem {
   return {
     id: String(row.id ?? ''),
     city_id: String(row.city_id ?? ''),
+    city_name: String(row.city_name ?? ''),
     title: String(row.title ?? ''),
     cover_image: String(row.cover_image ?? ''),
     price: Number(row.price ?? 0),
@@ -138,7 +141,10 @@ function mapHouseRow(row: Record<string, unknown>): HouseItem {
     community: String(row.community ?? ''),
     min_duration: String(row.min_duration ?? ''),
     tags: String(row.tags ?? ''),
-    created_at: String(row.created_at ?? '')
+    created_at: String(row.created_at ?? ''),
+    layout: String(row.layout ?? ''),
+    area: String(row.area ?? ''),
+    description: String(row.description ?? '')
   }
 }
 
@@ -148,15 +154,9 @@ async function fetchHouseDetail(id: string): Promise<HouseItem> {
       url: API_BASE_URL + '/api/houses/' + encodeURIComponent(id),
       method: 'GET',
       success: (res) => {
-        if (res.statusCode != 200) {
-          reject('request failed: ' + res.statusCode)
-          return
-        }
+        if (res.statusCode != 200) return reject('request failed: ' + res.statusCode)
         const payload = parseApiPayload<HouseDetailResponse>(res.data)
-        if (payload == null || payload.ok != true || payload.data == null) {
-          reject(payload?.message ?? 'house detail is empty')
-          return
-        }
+        if (payload == null || payload.ok != true || payload.data == null) return reject(payload?.message ?? 'house detail is empty')
         resolve(mapHouseRow(payload.data))
       },
       fail: (error) => reject(error)
@@ -165,71 +165,32 @@ async function fetchHouseDetail(id: string): Promise<HouseItem> {
 }
 
 const coverUrl = computed((): string => {
-  if (imgLoadError.value) {
-    return '/static/images/2.jpg'
-  }
+  if (imgLoadError.value) return '/static/images/2.jpg'
   const custom = String(house.value.cover_image || '').trim()
-  if (custom != '') {
-    return custom
-  }
-  return '/static/images/2.jpg'
+  return custom != '' ? custom : '/static/images/2.jpg'
 })
 
 const priceText = computed((): string => {
   const value = Number(house.value.price || 0)
-  if (!Number.isFinite(value) || value <= 0) {
-    return '--'
-  }
-  return String(Math.round(value))
-})
-
-const locationText = computed((): string => {
-  const district = String(house.value.district || '').trim()
-  const community = String(house.value.community || '').trim()
-  if (district == '' && community == '') {
-    return '位置待补充'
-  }
-  return district + ' · ' + community
+  return (!Number.isFinite(value) || value <= 0) ? '--' : String(Math.round(value))
 })
 
 const tagList = computed((): string[] => {
   const text = String(house.value.tags || '').trim()
-  if (text == '') {
-    return []
-  }
-  return text
-    .split(/[、,，;；|/]+/)
-    .map((item) => item.trim())
-    .filter((item) => item != '')
-})
-
-const createdText = computed((): string => {
-  const text = String(house.value.created_at || '').trim()
-  if (text == '') {
-    return '-'
-  }
-  return text.replace('T', ' ').replace('.000Z', '')
+  if (text == '') return []
+  return text.split(/[、,，;；|/]+/).map(item => item.trim()).filter(item => item != '')
 })
 
 const goBack = () => uni.navigateBack({})
-
-const onImageError = () => {
-  imgLoadError.value = true
-}
+const onImageError = () => { imgLoadError.value = true }
 
 const toggleFavorite = () => {
   isFavorite.value = !isFavorite.value
-  uni.showToast({
-    title: isFavorite.value ? '已加入收藏' : '已取消收藏',
-    icon: 'none'
-  })
+  uni.showToast({ title: isFavorite.value ? '已加入收藏' : '已取消收藏', icon: 'none' })
 }
 
 const contactOwner = () => {
-  uni.showToast({
-    title: '模拟：正在获取房东微信...',
-    icon: 'none'
-  })
+  uni.showToast({ title: '模拟：正在获取房东微信...', icon: 'none' })
 }
 
 onLoad(async (options) => {
@@ -238,7 +199,6 @@ onLoad(async (options) => {
     uni.showToast({ title: '无效房源ID', icon: 'none' })
     return
   }
-
   try {
     house.value = await fetchHouseDetail(id)
     imgLoadError.value = false
@@ -250,249 +210,68 @@ onLoad(async (options) => {
 </script>
 
 <style scoped>
-.page {
-  height: 100vh;
-  background-color: #f3f5f8;
-}
+.page { height: 100vh; background-color: #f3f5f8; }
+.scroll-content { height: 100%; }
 
-.scroll-content {
-  height: 100%;
-}
+/* --- 顶部头图 --- */
+.hero { position: relative; height: 320px; }
+.hero-image { width: 100%; height: 100%; }
+.hero-overlay { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background-image: linear-gradient(180deg, rgba(14, 25, 36, 0.18) 5%, rgba(14, 25, 36, 0.72) 100%); }
+.hero-top { position: absolute; left: 0; right: 0; top: 50px; padding: 0 16px; }
+.back-btn { width: 82px; height: 34px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.9); flex-direction: row; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(17, 24, 39, 0.12); }
+.back-icon { font-size: 14px; color: #1f2937; margin-right: 4px; }
+.back-text { font-size: 13px; color: #1f2937; font-weight: 700; }
+.hero-bottom { position: absolute; left: 16px; right: 16px; bottom: 22px; }
+.hero-badge { align-self: flex-start; font-size: 11px; color: #ffffff; background-color: rgba(255, 149, 5, 0.92); border-radius: 999px; padding: 5px 10px; letter-spacing: 1px; }
 
-.hero {
-  position: relative;
-  height: 320px;
-}
-
-.hero-image {
-  width: 100%;
-  height: 100%;
-}
-
-.hero-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background-image: linear-gradient(180deg, rgba(14, 25, 36, 0.18) 5%, rgba(14, 25, 36, 0.72) 100%);
-}
-
-.hero-top {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50px;
-  padding: 0 16px;
-}
-
-.back-btn {
-  width: 82px;
-  height: 34px;
-  border-radius: 18px;
-  background-color: rgba(255, 255, 255, 0.9);
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 4px 10px rgba(17, 24, 39, 0.12);
-}
-
-.back-icon {
-  font-size: 14px;
-  color: #1f2937;
-  margin-right: 4px;
-}
-
-.back-text {
-  font-size: 13px;
-  color: #1f2937;
-  font-weight: 700;
-}
-
-.hero-bottom {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 22px;
-}
-
-.hero-badge {
-  align-self: flex-start;
-  font-size: 11px;
-  color: #ffffff;
-  background-color: rgba(255, 149, 5, 0.92);
-  border-radius: 999px;
-  padding: 5px 10px;
-  letter-spacing: 1px;
-}
-
-.hero-location {
-  margin-top: 10px;
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.96);
-  font-weight: 600;
-}
-
-.main-card {
-  margin: -26px 16px 0;
-  background-color: #ffffff;
-  border-radius: 18px;
-  padding: 18px 16px 16px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-.price-row {
-  flex-direction: row;
-  align-items: baseline;
-}
-
-.price-value {
-  font-size: 36px;
-  line-height: 40px;
-  color: #ff4d4f;
-  font-weight: 900;
-}
-
-.price-unit {
-  margin-left: 4px;
-  font-size: 16px;
-  color: #8c8c8c;
-}
-
-.duration {
-  margin-left: 10px;
-  font-size: 12px;
-  color: #7a7a7a;
-  background-color: #f4f4f5;
-  border-radius: 8px;
-  padding: 4px 8px;
-}
-
-.title {
-  margin-top: 10px;
-  font-size: 22px;
-  line-height: 30px;
-  color: #1f2937;
-  font-weight: 900;
-}
-
-.address {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #57606a;
-}
-
-.info-card {
-  margin: 12px 16px 0;
+/* --- 通用白色卡片基类 --- */
+.content-block, .main-card, .info-card {
   background-color: #ffffff;
   border-radius: 16px;
-  padding: 14px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
-.section-title {
-  font-size: 16px;
-  color: #1f2937;
-  font-weight: 800;
-}
+/* --- 核心信息 --- */
+.main-card { margin: -26px 16px 0; padding: 18px 16px 16px; position: relative; z-index: 10; }
+.price-row { flex-direction: row; align-items: baseline; }
+.price-value { font-size: 36px; line-height: 40px; color: #ff4d4f; font-weight: 900; }
+.price-unit { margin-left: 4px; font-size: 16px; color: #8c8c8c; }
+.duration { margin-left: 10px; font-size: 12px; color: #7a7a7a; background-color: #f4f4f5; border-radius: 8px; padding: 4px 8px; }
+.title { margin-top: 10px; font-size: 22px; line-height: 30px; color: #1f2937; font-weight: 900; }
+.address { margin-top: 10px; font-size: 14px; color: #57606a; }
 
-.tag-wrap {
-  margin-top: 12px;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
+/* --- 房源亮点 --- */
+.info-card { margin: 12px 16px 0; padding: 14px; }
+.section-title { font-size: 16px; color: #1f2937; font-weight: 800; }
+.tag-wrap { margin-top: 12px; flex-direction: row; flex-wrap: wrap; }
+.tag-chip { font-size: 12px; color: #14532d; background-image: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border: 1px solid #86efac; border-radius: 999px; padding: 5px 12px; margin-right: 8px; margin-bottom: 8px; }
 
-.tag-chip {
-  font-size: 12px;
-  color: #14532d;
-  background-image: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-  border: 1px solid #86efac;
-  border-radius: 999px;
-  padding: 5px 12px;
-  margin-right: 8px;
-  margin-bottom: 8px;
-}
+/* --- 房屋规格网格 --- */
+.specs-grid { margin: 12px 16px 0; flex-direction: row; justify-content: space-around; padding: 20px 0; }
+.spec-item { align-items: center; }
+.spec-value { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 6px; }
+.spec-label { font-size: 12px; color: #999; }
 
-.meta-list {
-  margin-top: 10px;
-  border-radius: 10px;
-  background-color: #f8fafc;
-  padding: 2px 10px;
-}
+/* --- 房东描述 --- */
+.description-block { margin: 12px 16px 0; padding: 20px; }
+.desc-title { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 12px; }
+.desc-content { font-size: 14px; color: #555; line-height: 1.8; white-space: pre-wrap; }
 
-.meta-row {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom-width: 1px;
-  border-bottom-style: solid;
-  border-bottom-color: #edf2f7;
-}
+/* --- 平台安全提示 --- */
+.safety-tip { flex-direction: row; background-color: #FFF9E6; padding: 14px 16px; margin: 20px 16px 10px; border-radius: 12px; align-items: flex-start; }
+.safety-icon { font-size: 16px; margin-right: 8px; margin-top: 2px; }
+.safety-text { flex: 1; font-size: 13px; color: #D48806; line-height: 1.5; }
 
-.meta-row:last-child {
-  border-bottom-width: 0;
-}
+/* --- 底部优雅页脚 --- */
+.listing-footer-divider { flex-direction: row; align-items: center; justify-content: center; margin-top: 40px; margin-bottom: 20px; padding: 0 40px; }
+.divider-line { flex: 1; height: 1px; background-color: #EBEBEB; }
+.footer-text { margin: 0 15px; font-size: 12px; color: #B0B0B0; }
 
-.meta-key {
-  font-size: 13px;
-  color: #64748b;
-}
-
-.meta-value {
-  font-size: 13px;
-  color: #1f2937;
-  font-weight: 700;
-}
-
-.action-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 86px;
-  background-color: rgba(255, 255, 255, 0.98);
-  border-top: 1px solid #ebeef3;
-  padding: 10px 16px 20px;
-  flex-direction: row;
-  align-items: center;
-}
-
-.favorite-btn {
-  width: 94px;
-  height: 46px;
-  border-radius: 14px;
-  background-color: #f8fafc;
-  border: 1px solid #e5e7eb;
-  justify-content: center;
-  align-items: center;
-  margin-right: 10px;
-}
-
-.favorite-icon {
-  font-size: 16px;
-  color: #f59e0b;
-}
-
-.favorite-text {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #475569;
-}
-
-.contact-btn {
-  flex: 1;
-  height: 46px;
-  border-radius: 14px;
-  justify-content: center;
-  align-items: center;
-  background-image: linear-gradient(135deg, #ff6a3d 0%, #ff3d57 100%);
-  box-shadow: 0 10px 18px rgba(255, 77, 79, 0.28);
-}
-
-.contact-text {
-  font-size: 15px;
-  color: #ffffff;
-  font-weight: 800;
-}
+/* --- 底部悬浮操作栏 --- */
+.action-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 86px; background-color: rgba(255, 255, 255, 0.98); border-top: 1px solid #ebeef3; padding: 10px 16px 20px; flex-direction: row; align-items: center; }
+.favorite-btn { width: 94px; height: 46px; border-radius: 14px; background-color: #f8fafc; border: 1px solid #e5e7eb; justify-content: center; align-items: center; margin-right: 10px; }
+.favorite-icon { font-size: 16px; color: #f59e0b; }
+.favorite-text { margin-top: 2px; font-size: 11px; color: #475569; }
+.contact-btn { flex: 1; height: 46px; border-radius: 14px; justify-content: center; align-items: center; background-image: linear-gradient(135deg, #ff6a3d 0%, #ff3d57 100%); box-shadow: 0 10px 18px rgba(255, 77, 79, 0.28); }
+.contact-text { font-size: 15px; color: #ffffff; font-weight: 800; }
 </style>

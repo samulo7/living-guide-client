@@ -16,9 +16,10 @@ router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-        SELECT *
-        FROM houses
-        WHERE id = ?
+        SELECT h.*, c.name AS city_name
+        FROM houses h
+        LEFT JOIN cities c ON h.city_id = c.id
+        WHERE h.id = ?
         LIMIT 1
       `,
       [id]

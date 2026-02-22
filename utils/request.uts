@@ -1,0 +1,139 @@
+const API_BASE_URL = 'http://localhost:3000'
+const TOKEN_KEY = 'token'
+const LEGACY_LOGIN_KEY = 'isLogged'
+
+let requestInterceptorInstalled = false
+let redirectingToLogin = false
+
+function normalizeUrl(url: string): string {
+  const text = String(url || '').trim()
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+  if (text.startsWith('/api/')) {
+    return `${API_BASE_URL}${text}`
+  }
+  return text
+}
+
+function normalizeMethod(value: string): RequestMethod {
+  const method = value.trim().toUpperCase()
+  if (method == 'POST') {
+    return 'POST'
+  }
+  if (method == 'PUT') {
+    return 'PUT'
+  }
+  if (method == 'DELETE') {
+    return 'DELETE'
+  }
+  if (method == 'PATCH') {
+    return 'PATCH'
+  }
+  if (method == 'OPTIONS') {
+    return 'OPTIONS'
+  }
+  if (method == 'HEAD') {
+    return 'HEAD'
+  }
+  return 'GET'
+}
+
+function withAuthHeader(rawHeader: UTSJSONObject | null): UTSJSONObject {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  const header = rawHeader != null ? rawHeader : new UTSJSONObject()
+
+  if (token != '') {
+    header.set('Authorization', 'Bearer ' + token)
+  }
+
+  return header
+}
+
+function redirectToLoginIfNeeded() {
+  uni.removeStorageSync(TOKEN_KEY)
+  uni.removeStorageSync(LEGACY_LOGIN_KEY)
+
+  if (redirectingToLogin) {
+    return
+  }
+
+  const pages = getCurrentPages()
+  if (pages.length > 0) {
+    const currentPage = pages[pages.length - 1]
+    if (currentPage != null && currentPage.route == 'pages/login/login') {
+      return
+    }
+  }
+
+  redirectingToLogin = true
+  uni.redirectTo({
+    url: '/pages/login/login',
+    complete: () => {
+      setTimeout(() => {
+        redirectingToLogin = false
+      }, 300)
+    }
+  })
+}
+
+function handleStatusCode(statusCode: number) {
+  if (statusCode === 401) {
+    redirectToLoginIfNeeded()
+  }
+}
+
+export function initGlobalRequestInterceptor() {
+  if (requestInterceptorInstalled) {
+    return
+  }
+
+  requestInterceptorInstalled = true
+  uni.addInterceptor('request', {
+    invoke: (options: Record<string, any>) => {
+      const url = String(options.url || '')
+      options.url = normalizeUrl(url)
+      options.header = withAuthHeader(options.header as UTSJSONObject | null)
+    },
+    success: (response: Record<string, any>) => {
+      const statusCode = Number(response.statusCode || 0)
+      handleStatusCode(statusCode)
+    }
+  })
+}
+
+export function request<T = Record<string, any>>(options: Record<string, any>): Promise<T> {
+  const url = normalizeUrl(String(options.url || ''))
+  const method = normalizeMethod(String(options.method || 'GET'))
+  const data = options.data
+  const header = withAuthHeader((options.header as UTSJSONObject) || null)
+
+  return new Promise<T>((resolve, reject) => {
+    if (url == '') {
+      reject('request url is required')
+      return
+    }
+
+    uni.request({
+      url: url,
+      method: method as RequestMethod,
+      data: data,
+      header: header as UTSJSONObject,
+      success: (res) => {
+        const statusCode = Number(res.statusCode || 0)
+        handleStatusCode(statusCode)
+
+        if (statusCode >= 400) {
+          reject(res)
+          return
+        }
+
+        const data = res.data as T
+        resolve(data)
+      },
+      fail: (error) => {
+        reject(error)
+      }
+    })
+  })
+}

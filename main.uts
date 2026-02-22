@@ -1,7 +1,9 @@
 import App from './App.uvue'
+import { initGlobalRequestInterceptor } from './utils/request'
 
 import { createSSRApp } from 'vue'
 export function createApp() {
+	initGlobalRequestInterceptor()
 	const app = createSSRApp(App)
 	return {
 		app

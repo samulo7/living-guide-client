@@ -120,6 +120,8 @@ interface HouseItem {
 
 const API_BASE_URL = 'http://localhost:3000'
 const LOGIN_FLAG_KEY = 'isLogged'
+const TOKEN_KEY = 'token'
+const LOGIN_SUCCESS_EVENT = 'auth-login-success'
 
 const isLogged = ref(false)
 const userInfo = ref<ProfileInfo | null>(null)
@@ -256,6 +258,7 @@ function onLogout() {
       if (!res.confirm) {
         return
       }
+      uni.removeStorageSync(TOKEN_KEY)
       uni.removeStorageSync(LOGIN_FLAG_KEY)
       isLogged.value = false
       userInfo.value = null
@@ -274,6 +277,11 @@ function onProfileCardClick() {
 }
 
 function getIsLogged(): boolean {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  if (token != '') {
+    return true
+  }
+
   const value = uni.getStorageSync(LOGIN_FLAG_KEY)
   if (value === true || value === 1) {
     return true
@@ -309,13 +317,13 @@ async function refreshUserCenter() {
 onLoad(async () => {
   await refreshUserCenter()
   hasLoaded = true
-})
 
-onShow(async () => {
-  if (!hasLoaded) {
-    return
-  }
-  await refreshUserCenter()
+  uni.$on(LOGIN_SUCCESS_EVENT, () => {
+    if (!hasLoaded) {
+      return
+    }
+    refreshUserCenter()
+  })
 })
 </script>
 

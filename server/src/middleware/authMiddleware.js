@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-me'
+const SECRET_KEY = process.env.SECRET_KEY || 'dev-secret-key-change-me'
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || req.headers.Authorization || ''
@@ -23,7 +23,7 @@ function authMiddleware(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token.trim(), JWT_SECRET)
+    const payload = jwt.verify(token.trim(), SECRET_KEY)
     const userId = Number(payload?.id)
     if (!Number.isInteger(userId) || userId <= 0) {
       res.status(401).json({

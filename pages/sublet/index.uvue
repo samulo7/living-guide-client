@@ -228,7 +228,8 @@ async function selectCity(cityId: string) {
 onLoad(async (options) => {
   const city = options?.city
   if (city != null) {
-    cityQuery.value = decodeURIComponent(String(city)).trim()
+    const decoded = decodeURIComponent(String(city))
+    cityQuery.value = String(decoded || '').trim()
   }
 
   loading.value = true

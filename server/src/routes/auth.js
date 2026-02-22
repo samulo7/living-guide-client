@@ -4,8 +4,8 @@ const jwt = require('jsonwebtoken')
 const { pool } = require('../config/db')
 
 const router = express.Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-me'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+const SECRET_KEY = process.env.SECRET_KEY || 'dev-secret-key-change-me'
+const JWT_EXPIRES_IN = '7d'
 
 function normalizePhone(value) {
   return String(value || '').replace(/\s+/g, '').trim()
@@ -21,7 +21,7 @@ function issueToken(user) {
       id: user.id,
       phone: user.phone
     },
-    JWT_SECRET,
+    SECRET_KEY,
     {
       expiresIn: JWT_EXPIRES_IN
     }
@@ -104,70 +104,36 @@ router.post('/register', async (req, res) => {
   }
 })
 
-router.post('/login', async (req, res) => {
+router.post('/login', (req, res) => {
   const phone = normalizePhone(req.body?.phone)
-  const password = String(req.body?.password || '')
+  const code = String(req.body?.code ?? req.body?.verificationCode ?? '')
 
-  if (!validatePhone(phone) || password == '') {
+  if (phone == '') {
     res.status(400).json({
       success: false,
-      message: 'Phone and password are required'
+      message: 'Phone is required'
     })
     return
   }
 
-  try {
-    const [rows] = await pool.query(
-      `
-        SELECT id, phone, password, username, avatar, tagline, balance
-        FROM users
-        WHERE phone = ?
-        LIMIT 1
-      `,
-      [phone]
-    )
-    if (rows.length === 0) {
-      res.status(401).json({
-        success: false,
-        message: 'Phone or password is incorrect'
-      })
-      return
-    }
-
-    const user = rows[0]
-    const matched = await bcrypt.compare(password, user.password)
-    if (!matched) {
-      res.status(401).json({
-        success: false,
-        message: 'Phone or password is incorrect'
-      })
-      return
-    }
-
-    const token = issueToken({
-      id: user.id,
-      phone: user.phone
-    })
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        username: user.username,
-        avatar: user.avatar,
-        tagline: user.tagline,
-        balance: user.balance
-      }
-    })
-  } catch (error) {
-    console.error('[POST /api/auth/login] failed:', error.message)
-    res.status(500).json({
+  if (code !== '123456') {
+    res.status(401).json({
       success: false,
-      message: 'Failed to login'
+      message: 'Verification code is incorrect'
     })
+    return
   }
+
+  const token = issueToken({
+    id: 1,
+    phone
+  })
+
+  res.json({
+    success: true,
+    token,
+    expiresIn: JWT_EXPIRES_IN
+  })
 })
 
 module.exports = router

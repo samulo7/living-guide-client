@@ -1,8 +1,8 @@
 const express = require('express')
 const { pool } = require('../config/db')
+const authMiddleware = require('../middleware/authMiddleware')
 
 const router = express.Router()
-const MVP_USER_ID = 1
 
 function mapProfileRow(row) {
   const nickname = String(row.nickname || row.username || '数字游民').trim()
@@ -10,14 +10,31 @@ function mapProfileRow(row) {
   const avatar = String(row.avatar || '').trim()
 
   return {
-    id: Number(row.id || MVP_USER_ID),
+    id: Number(row.id || 0),
     nickname: nickname != '' ? nickname : '数字游民',
     bio: bio != '' ? bio : '今天也在低成本生活',
     avatar
   }
 }
 
-router.get('/profile', async (req, res) => {
+function readAuthedUserId(req) {
+  const userId = Number(req.user?.id || 0)
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return 0
+  }
+  return userId
+}
+
+router.get('/profile', authMiddleware, async (req, res) => {
+  const userId = readAuthedUserId(req)
+  if (userId <= 0) {
+    res.status(401).json({
+      ok: false,
+      message: 'Unauthorized'
+    })
+    return
+  }
+
   try {
     const [rows] = await pool.query(
       `
@@ -26,7 +43,7 @@ router.get('/profile', async (req, res) => {
         WHERE id = ?
         LIMIT 1
       `,
-      [MVP_USER_ID]
+      [userId]
     )
 
     if (!rows || rows.length === 0) {
@@ -50,7 +67,16 @@ router.get('/profile', async (req, res) => {
   }
 })
 
-router.get('/favorites', async (req, res) => {
+router.get('/favorites', authMiddleware, async (req, res) => {
+  const userId = readAuthedUserId(req)
+  if (userId <= 0) {
+    res.status(401).json({
+      ok: false,
+      message: 'Unauthorized'
+    })
+    return
+  }
+
   try {
     const [rows] = await pool.query(
       `
@@ -70,7 +96,7 @@ router.get('/favorites', async (req, res) => {
         WHERE f.user_id = ?
         ORDER BY f.created_at DESC, h.id DESC
       `,
-      [MVP_USER_ID]
+      [userId]
     )
 
     res.json({

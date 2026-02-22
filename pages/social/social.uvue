@@ -1,324 +1,350 @@
 <template>
   <view class="page">
     <view class="hero">
-      <text class="title">搭子雷达</text>
-      <text class="subtitle">轻社交，只搭子，不尬聊</text>
-    </view>
-
-    <view class="radar-panel">
-      <view class="radar-core">
-        <view class="ring ring-1"></view>
-        <view class="ring ring-2"></view>
-        <view class="ring ring-3"></view>
-        <view class="cross-line line-x"></view>
-        <view class="cross-line line-y"></view>
-        <view class="sweep" :class="scanRunning ? 'sweep-active' : 'sweep-stop'"></view>
-        <view class="center-dot"></view>
+      <text class="hero-title">搭子广场</text>
+      <text class="hero-subtitle">一个人躺平太无聊？找个同频搭子</text>
+      <view class="hero-tips">
+        <text class="hero-tip">同城组局</text>
+        <text class="hero-tip">社恐友好</text>
+        <text class="hero-tip">即时响应</text>
       </view>
-      <text class="scan-text">{{ scanRunning ? '正在扫描附近搭子...' : '发现附近动态' }}</text>
     </view>
 
     <scroll-view class="feed" direction="vertical">
-      <view v-if="loading" class="state-box">
-        <text class="state-text">加载中...</text>
+      <view v-if="loading" class="state-wrap">
+        <text class="state-text">正在加载搭子动态...</text>
       </view>
 
-      <view v-else-if="sortedActivities.length === 0" class="state-box">
-        <text class="state-text">附近暂时还没有新动态</text>
+      <view v-else-if="companionList.length == 0" class="state-wrap">
+        <text class="state-text">广场暂时还没有新帖子</text>
       </view>
 
-      <view v-else>
-        <view
-          v-for="(item, index) in sortedActivities"
-          :key="item.id"
-          :class="['fade-item', index < visibleCount ? 'fade-show' : 'fade-hide']"
-        >
-          <activity-card :activity="item" @join="onJoin(item)" />
+      <view v-else class="card-list">
+        <view class="post-card" v-for="post in companionList" :key="post.id">
+          <view class="post-head">
+            <image v-if="post.avatar != ''" class="avatar" :src="post.avatar" mode="aspectFill"></image>
+            <view v-else class="avatar-fallback">
+              <text class="avatar-fallback-icon">👤</text>
+            </view>
+
+            <view class="author-info">
+              <text class="nickname">{{ post.nickname }}</text>
+              <text class="meta">📍 {{ post.city_name }} · 发布于 {{ post.created_at_text }}</text>
+            </view>
+          </view>
+
+          <text class="post-title">{{ post.title }}</text>
+          <text class="post-content">{{ post.content }}</text>
+
+          <view class="tag-row" v-if="post.tags.length > 0">
+            <text
+              v-for="(tag, index) in post.tags"
+              :key="post.id + '-' + index"
+              :class="['tag-chip', 'tag-chip-' + String(index % 5)]"
+            >
+              {{ tag }}
+            </text>
+          </view>
         </view>
       </view>
-      <view style="height: 100px;"></view>
+
+      <view style="height: 18px;"></view>
     </scroll-view>
-
-    <view class="fab" hover-class="fab-active" @click="onCreate">
-      <text class="fab-text">+</text>
-    </view>
-
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import ActivityCard from '../../components/ActivityCard.uvue'
-import type { ActivityItem } from '../../types/social'
-import { loadActivities, sortActivitiesByDistance } from '../../utils/useSocial'
+import { ref } from 'vue'
 
-const activities = ref<ActivityItem[]>([])
-const loading = ref(true)
-const scanRunning = ref(true)
-const visibleCount = ref(0)
-const timerIds: number[] = []
-let revealStarted = false
-
-const sortedActivities = computed(() => sortActivitiesByDistance(activities.value))
-
-const addTimer = (handler: () => void, delay: number) => {
-  const id = setTimeout(handler, delay) as unknown as number
-  timerIds.push(id)
+interface CompanionListResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
 }
 
-const tryReveal = () => {
-  if (loading.value || scanRunning.value || revealStarted) {
-    return
+interface CompanionItem {
+  id: string
+  nickname: string
+  avatar: string
+  city_name: string
+  title: string
+  content: string
+  tags: string[]
+  created_at_text: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+
+const loading = ref(true)
+const companionList = ref<CompanionItem[]>([])
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
   }
-  revealStarted = true
-  sortedActivities.value.forEach((_, index) => {
-    addTimer(() => {
-      visibleCount.value = index + 1
-    }, index * 120)
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags
+      .map((item) => String(item || '').trim())
+      .filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[、,，;；|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function formatCreatedAt(raw: unknown): string {
+  const text = String(raw || '').trim()
+  if (text == '') {
+    return '--'
+  }
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) {
+    return text
+  }
+  const y = String(date.getFullYear())
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  return y + '-' + m + '-' + d + ' ' + hh + ':' + mm
+}
+
+function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
+  const city = String(row.city_name ?? '').trim()
+  return {
+    id: String(row.id ?? ''),
+    nickname: String(row.nickname ?? '').trim() || '匿名搭子',
+    avatar: String(row.avatar ?? '').trim(),
+    city_name: city != '' ? city : '未知城市',
+    title: String(row.title ?? '').trim(),
+    content: String(row.content ?? '').trim(),
+    tags: splitTags(row.tags),
+    created_at_text: formatCreatedAt(row.created_at)
+  }
+}
+
+async function fetchCompanions(): Promise<CompanionItem[]> {
+  return new Promise<CompanionItem[]>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/companions',
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<CompanionListResponse>(res.data)
+        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
+          reject(payload?.message ?? 'companions is empty')
+          return
+        }
+        resolve(payload.data.map((item) => mapCompanionRow(item)))
+      },
+      fail: (error) => reject(error)
+    })
   })
 }
 
-const startRadar = () => {
-  addTimer(() => {
-    scanRunning.value = false
-    tryReveal()
-  }, 2000)
-}
-
-const initData = async () => {
+onLoad(async () => {
+  loading.value = true
   try {
-    activities.value = await loadActivities()
+    companionList.value = await fetchCompanions()
   } catch (error) {
-    uni.showToast({ title: '动态加载失败', icon: 'none' })
+    console.error('[social] load companions failed:', error)
+    companionList.value = []
+    uni.showToast({ title: '加载搭子动态失败', icon: 'none' })
   } finally {
     loading.value = false
-    tryReveal()
   }
-}
-
-const onJoin = (item: ActivityItem) => {
-  if (item.status == 'full') {
-    uni.showToast({ title: '该局已满', icon: 'none' })
-    return
-  }
-  uni.showToast({ title: '已发送申请，等待对方通过~', icon: 'none' })
-}
-
-const onCreate = () => {
-  const options = ['吃饭', '运动', '发呆', '游戏']
-  uni.showActionSheet({
-    itemList: options,
-    success: (res) => {
-      const choice = options[res.tapIndex] ?? '新活动'
-      uni.showToast({ title: `已发起${choice}局（模拟）`, icon: 'none' })
-    }
-  })
-}
-
-onMounted(() => {
-  startRadar()
-  initData()
-})
-
-onUnmounted(() => {
-  timerIds.forEach((id) => clearTimeout(id))
 })
 </script>
 
 <style scoped>
 .page {
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: #f4f0ff;
+  background-color: #f6f6f3;
 }
 
 .hero {
-  padding: 50px 18px 12px;
-  background-image: linear-gradient(135deg, #8f54ff 0%, #4f2e9e 100%);
+  padding: 52px 16px 18px;
+  background-image: linear-gradient(132deg, #e7f4f0 0%, #f0efe5 44%, #f9ebdd 100%);
 }
 
-.title {
-  font-size: 24px;
-  color: #ffffff;
+.hero-title {
+  font-size: 30px;
+  color: #1f2937;
   font-weight: 900;
 }
 
-.subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
+.hero-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #4b5563;
 }
 
-.radar-panel {
-  margin: 12px 16px 10px;
-  padding: 14px 12px 10px;
-  border-radius: 16px;
-  background-image: linear-gradient(180deg, #f7f2ff 0%, #efe6ff 100%);
-  border: 1px solid #e8d9ff;
-  align-items: center;
+.hero-tips {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
-.radar-core {
-  width: 190px;
-  height: 190px;
-  border-radius: 95px;
-  background-color: rgba(114, 46, 209, 0.06);
-  position: relative;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-}
-
-.ring {
-  position: absolute;
+.hero-tip {
+  margin-right: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #0f766e;
   border-radius: 999px;
-  border-width: 1px;
-  border-style: solid;
-  border-color: rgba(114, 46, 209, 0.35);
-}
-
-.ring-1 {
-  width: 70px;
-  height: 70px;
-  animation: pulse 1.8s ease-in-out infinite;
-}
-
-.ring-2 {
-  width: 120px;
-  height: 120px;
-  animation: pulse 2.1s ease-in-out infinite;
-}
-
-.ring-3 {
-  width: 170px;
-  height: 170px;
-  animation: pulse 2.4s ease-in-out infinite;
-}
-
-.cross-line {
-  position: absolute;
-  background-color: rgba(114, 46, 209, 0.15);
-}
-
-.line-x {
-  width: 170px;
-  height: 1px;
-}
-
-.line-y {
-  width: 1px;
-  height: 170px;
-}
-
-.sweep {
-  position: absolute;
-  width: 85px;
-  height: 2px;
-  left: 95px;
-  top: 95px;
-  transform-origin: 0 0;
-  background-image: linear-gradient(90deg, rgba(191, 152, 255, 0.3), rgba(114, 46, 209, 0.95));
-  box-shadow: 0 0 8px rgba(114, 46, 209, 0.7);
-}
-
-.sweep-active {
-  animation: sweep-rotate 2s linear 1;
-}
-
-.sweep-stop {
-  transform: rotate(35deg);
-}
-
-.center-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background-color: #722ed1;
-  box-shadow: 0 0 12px rgba(114, 46, 209, 0.8);
-}
-
-.scan-text {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #5d3f96;
-  font-weight: 700;
+  padding: 4px 10px;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  background-color: rgba(255, 255, 255, 0.78);
 }
 
 .feed {
-  flex: 1;
-  padding: 0 16px;
+  height: calc(100vh - 146px);
+  padding: 12px 14px 0;
 }
 
-.state-box {
-  padding-top: 50px;
+.state-wrap {
+  padding-top: 88px;
   align-items: center;
 }
 
 .state-text {
   font-size: 14px;
-  color: #8b7ca8;
+  color: #8c8c8c;
 }
 
-.fade-item {
-  transition-property: opacity, transform;
-  transition-duration: 0.28s;
+.post-card {
+  margin-bottom: 14px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
 }
 
-.fade-hide {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.fade-show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.fab {
-  position: fixed;
-  right: 18px;
-  bottom: 92px;
-  width: 52px;
-  height: 52px;
-  border-radius: 26px;
-  background-image: linear-gradient(135deg, #9a60ff 0%, #722ed1 100%);
-  justify-content: center;
+.post-head {
+  flex-direction: row;
   align-items: center;
-  box-shadow: 0 10px 20px rgba(114, 46, 209, 0.35);
-  z-index: 120;
 }
 
-.fab-active {
-  opacity: 0.9;
-  transform: scale(0.96);
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background-color: #f3f4f6;
 }
 
-.fab-text {
-  color: #ffffff;
-  font-size: 28px;
-  font-weight: 700;
+.avatar-fallback {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  align-items: center;
+  justify-content: center;
+  background-color: #e5e7eb;
+}
+
+.avatar-fallback-icon {
+  font-size: 19px;
+  color: #6b7280;
+}
+
+.author-info {
+  flex: 1;
+  margin-left: 10px;
+}
+
+.nickname {
+  font-size: 15px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.post-title {
+  margin-top: 12px;
+  font-size: 20px;
   line-height: 28px;
+  color: #0f172a;
+  font-weight: 900;
+  lines: 2;
+  text-overflow: ellipsis;
 }
 
-@keyframes sweep-rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.post-content {
+  margin-top: 9px;
+  font-size: 14px;
+  line-height: 22px;
+  color: #475569;
+  lines: 3;
+  text-overflow: ellipsis;
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.55;
-  }
+.tag-row {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+
+.tag-chip-0 {
+  color: #9a3412;
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.tag-chip-1 {
+  color: #166534;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.tag-chip-2 {
+  color: #1d4ed8;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.tag-chip-3 {
+  color: #0f766e;
+  background-color: #f0fdfa;
+  border: 1px solid #99f6e4;
+}
+
+.tag-chip-4 {
+  color: #7c2d12;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
 }
 </style>

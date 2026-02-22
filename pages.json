@@ -53,7 +53,7 @@
     {
       "path": "pages/social/social",
       "style": {
-        "navigationBarTitleText": "搭子雷达",
+        "navigationBarTitleText": "搭子广场",
         "navigationStyle": "custom"
       }
     },

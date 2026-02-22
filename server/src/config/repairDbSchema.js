@@ -166,10 +166,98 @@ async function repairJobsTable() {
   await seedJobs()
 }
 
+async function ensureCompanionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS companions (
+      id INT NOT NULL AUTO_INCREMENT,
+      nickname VARCHAR(80) NOT NULL,
+      avatar VARCHAR(500) NOT NULL DEFAULT '',
+      city_name VARCHAR(120) NOT NULL DEFAULT '',
+      title VARCHAR(160) NOT NULL,
+      content TEXT NOT NULL,
+      tags VARCHAR(255) NOT NULL DEFAULT '',
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_companions_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `)
+}
+
+async function seedCompanions() {
+  await pool.query(`
+    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
+    SELECT
+      '北方热心饭搭子',
+      '',
+      '鹤岗',
+      '今晚找个饭搭子，AA 吃铁锅炖',
+      '我在兴安区，饭量正常，不劝酒不尬聊，吃完就散步回家。社恐也欢迎，一起把晚饭这件小事搞定。',
+      '饭搭子,社恐友好,AA制',
+      DATE_SUB(NOW(), INTERVAL 2 HOUR)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM companions WHERE nickname = '北方热心饭搭子' AND title = '今晚找个饭搭子，AA 吃铁锅炖'
+    )
+  `)
+
+  await pool.query(`
+    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
+    SELECT
+      '海边晨跑搭子',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
+      '大理',
+      '早上 6:30 洱海慢跑 5km，有人一起吗',
+      '配速 7 分左右，重在打卡和晒太阳。跑后可一起喝豆浆，不商业，不推销，纯健康互相监督。',
+      '运动搭子,早起打卡,低强度',
+      DATE_SUB(NOW(), INTERVAL 7 HOUR)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM companions WHERE nickname = '海边晨跑搭子' AND title = '早上 6:30 洱海慢跑 5km，有人一起吗'
+    )
+  `)
+
+  await pool.query(`
+    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
+    SELECT
+      '远程自习合伙人',
+      '',
+      '线上',
+      '下午 2 点线上共学 3 小时，互相监督接单',
+      '开腾讯会议静音自习，每 50 分钟休息 10 分钟。适合自由职业和远程工作者，结束后复盘今天推进了什么。',
+      '线上搭子,远程办公,效率提升',
+      DATE_SUB(NOW(), INTERVAL 1 DAY)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM companions WHERE nickname = '远程自习合伙人' AND title = '下午 2 点线上共学 3 小时，互相监督接单'
+    )
+  `)
+}
+
+async function repairCompanionsTable() {
+  await ensureCompanionsTable()
+  const columns = await getTableColumns('companions')
+  if (columns == null) {
+    return
+  }
+
+  await ensureColumn('companions', 'nickname', "ALTER TABLE companions ADD COLUMN nickname VARCHAR(80) NOT NULL DEFAULT '' AFTER id")
+  await ensureColumn('companions', 'avatar', "ALTER TABLE companions ADD COLUMN avatar VARCHAR(500) NOT NULL DEFAULT '' AFTER nickname")
+  await ensureColumn('companions', 'city_name', "ALTER TABLE companions ADD COLUMN city_name VARCHAR(120) NOT NULL DEFAULT '' AFTER avatar")
+  await ensureColumn('companions', 'title', "ALTER TABLE companions ADD COLUMN title VARCHAR(160) NOT NULL DEFAULT '' AFTER city_name")
+  await ensureColumn('companions', 'content', "ALTER TABLE companions ADD COLUMN content TEXT NOT NULL AFTER title")
+  await ensureColumn('companions', 'tags', "ALTER TABLE companions ADD COLUMN tags VARCHAR(255) NOT NULL DEFAULT '' AFTER content")
+  await ensureColumn(
+    'companions',
+    'updated_at',
+    'ALTER TABLE companions ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
+  )
+
+  await seedCompanions()
+}
+
 async function repairDbSchema() {
   await repairUsersTable()
   await repairCitiesTable()
   await repairJobsTable()
+  await repairCompanionsTable()
 }
 
 module.exports = {

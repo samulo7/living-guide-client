@@ -210,6 +210,34 @@ Common errors:
 
 - `500` failed to fetch jobs
 
+### `GET /api/companions`
+
+Fetch latest companion posts.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": 1,
+      "nickname": "北方热心饭搭子",
+      "avatar": "",
+      "city_name": "鹤岗",
+      "title": "今晚找个饭搭子，AA 吃铁锅炖",
+      "content": "我在兴安区，饭量正常，不劝酒不尬聊，吃完就散步回家。",
+      "tags": "饭搭子,社恐友好,AA制",
+      "created_at": "2026-02-22T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+Common errors:
+
+- `500` failed to fetch companions
+
 ### `GET /api/user/profile`
 
 Get current user profile (auth required).
@@ -314,6 +342,7 @@ Environment: existing service on `localhost:3000`, MySQL connected, OSS configur
 | cities_verified_maxRent | GET | `/api/cities?verified=true&maxRent=600` | `200` |
 | city_houses_ok | GET | `/api/cities/1/houses` | `200` |
 | jobs_list_ok | GET | `/api/jobs` | `200` |
+| companions_list_ok | GET | `/api/companions` | `200` |
 | profile_no_auth | GET | `/api/user/profile` | `401` |
 | profile_bad_token | GET | `/api/user/profile` | `401` |
 | profile_get_ok | GET | `/api/user/profile` | `200` |

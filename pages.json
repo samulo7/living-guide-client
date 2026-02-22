@@ -25,7 +25,7 @@
     {
       "path": "pages/gigs/gigs",
       "style": {
-        "navigationBarTitleText": "旅居搞钱",
+        "navigationBarTitleText": "搞钱大厅",
         "navigationStyle": "custom"
       }
     },

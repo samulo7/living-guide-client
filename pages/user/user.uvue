@@ -1,179 +1,139 @@
 <template>
   <view class="page">
     <scroll-view class="content" direction="vertical">
-      <view v-if="loading" class="state-box">
-        <text class="state-text">正在整理你的旅居档案...</text>
-      </view>
-
-        <view v-else>
-          <view class="identity-card">
-            <image class="identity-bg" src="/static/images/3.jpg" mode="aspectFill"></image>
-            <view class="identity-mask"></view>
-            <view class="identity-main">
-              <view class="avatar-wrap" :class="{ 'avatar-wrap-editing': isEditing }" @click="onChangeAvatar">
-                <image class="avatar" :src="avatar" mode="aspectFill"></image>
-                <view v-if="isEditing" class="avatar-edit-mask">
-                  <text class="avatar-edit-text">{{ uploadingAvatar ? '上传中...' : '📷 点击更换头像' }}</text>
-                </view>
-              </view>
-
-              <view v-if="!isEditing" class="profile-title-wrap">
-                <text class="nickname">{{ nickname }}</text>
-                <text class="nomad-pill">{{ tagline }}</text>
-              </view>
-
-              <view v-else class="profile-edit-wrap">
-                <input
-                  v-model="editingUsername"
-                  @input="onEditingUsernameInput"
-                  @blur="onEditingUsernameInput"
-                  class="profile-input"
-                  maxlength="30"
-                  placeholder-class="profile-input-placeholder"
-                  placeholder="请输入昵称"
-                  type="text"
-                />
-                <input
-                  v-model="editingTagline"
-                  @input="onEditingTaglineInput"
-                  @blur="onEditingTaglineInput"
-                  class="profile-input"
-                  maxlength="60"
-                  placeholder-class="profile-input-placeholder"
-                  placeholder="请输入个性签名"
-                  type="text"
-                />
-              </view>
-
-              <view class="profile-actions">
-                <view v-if="!isEditing" class="profile-btn profile-btn-edit" @click="startEditProfile">
-                  <text class="profile-btn-text">✏️ 编辑资料</text>
-                </view>
-                <view v-else class="profile-btn-group">
-                  <view class="profile-btn profile-btn-save" @click="saveProfile">
-                    <text class="profile-btn-text">{{ savingProfile ? '保存中...' : '💾 保存' }}</text>
-                  </view>
-                  <view class="profile-btn profile-btn-cancel" @click="cancelEditProfile">
-                    <text class="profile-btn-text profile-btn-text-dark">取消</text>
-                  </view>
-                </view>
-              </view>
-
-              <view class="tag-row">
-                <text v-for="tag in displayTags" :key="tag" class="tag-pill">{{ tag }}</text>
-              </view>
-
-              <view class="wallet-box">
-                <view class="wallet-col">
-                  <text class="wallet-label">钱包余额</text>
-                  <text class="wallet-value">¥{{ walletBalanceText }}</text>
-                </view>
-                <view class="wallet-divider"></view>
-                <view class="wallet-col">
-                  <text class="wallet-label">本月收入</text>
-                  <text class="wallet-value">¥{{ walletIncomeText }}</text>
-                </view>
-              </view>
-            </view>
+      <view class="hero">
+        <view class="profile-card" :class="{ 'profile-card-guest': userInfo == null }" @click="onProfileCardClick">
+          <image v-if="userInfo != null && userInfo.avatar != ''" class="avatar" :src="userInfo.avatar" mode="aspectFill"></image>
+          <view v-else class="avatar-fallback">
+            <text class="avatar-fallback-icon">👤</text>
           </view>
 
-        <view class="panel">
-          <text class="panel-title">旅居仪表盘</text>
-          <view class="dashboard-grid">
-            <view v-for="card in dashboardCards" :key="card.id" class="metric-card">
-              <text class="metric-icon">{{ card.icon }}</text>
-              <text class="metric-value">{{ card.value }}</text>
-              <text class="metric-label">{{ card.title }}</text>
+          <view class="profile-main">
+            <text class="nickname">{{ userInfo != null ? userInfo.nickname : '点击登录' }}</text>
+            <text v-if="userInfo != null && userInfo.bio != ''" class="bio">{{ userInfo.bio }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view v-if="!isLogged" class="guest-placeholder-wrap">
+        <text class="guest-placeholder-text">登录后查看我的游民资产</text>
+      </view>
+
+      <view v-else>
+        <view class="stats-panel">
+          <view class="stat-item">
+            <text class="stat-label">我的发布</text>
+            <text class="stat-value">2</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">我的收藏</text>
+            <text class="stat-value">{{ favoriteList.length }}</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">浏览记录</text>
+            <text class="stat-value">18</text>
+          </view>
+        </view>
+
+        <view class="section-head">
+          <text class="section-title">我的收藏</text>
+        </view>
+
+        <view v-if="loadingFavorites" class="state-wrap">
+          <text class="state-text">正在加载收藏房源...</text>
+        </view>
+
+        <view v-else-if="favoriteList.length == 0" class="state-wrap">
+          <text class="state-text">你还没有收藏房源，去安家大厅逛逛吧</text>
+        </view>
+
+        <view v-else class="card-list">
+          <view
+            class="house-card"
+            v-for="room in favoriteList"
+            :key="room.id"
+            @click="goDetail(room.id)"
+          >
+            <view class="card-image-wrap">
+              <image class="card-image" :src="coverUrl(room.cover_image)" mode="aspectFill"></image>
+              <text class="green-badge">收藏优选</text>
+              <text class="price-badge">¥{{ priceText(room.price) }}/月</text>
+            </view>
+
+            <view class="card-content">
+              <text class="card-title">{{ room.title }}</text>
+              <text class="card-location">📍 {{ room.city_name }} · {{ room.district }}</text>
+              <view class="tag-row" v-if="splitTags(room.tags).length > 0">
+                <text
+                  class="tag-chip"
+                  v-for="(tag, index) in splitTags(room.tags).slice(0, 3)"
+                  :key="room.id + '-' + index"
+                >
+                  {{ tag }}
+                </text>
+              </view>
             </view>
           </view>
         </view>
 
-        <view class="panel">
-          <text class="panel-title">功能列表</text>
-          <view v-for="item in menuItems" :key="item.id" class="menu-row" @click="onMenuClick(item.id)">
-            <view class="menu-left">
-              <text class="menu-title">{{ item.title }}</text>
-              <text class="menu-desc">{{ item.desc }}</text>
-            </view>
-            <text class="menu-arrow">›</text>
-          </view>
-
-          <view class="logout-btn" hover-class="logout-btn-active" @click="onLogout">
-            <text class="logout-text">退出登录</text>
-          </view>
+        <view class="logout-btn" @click="onLogout">
+          <text class="logout-text">退出登录</text>
         </view>
-
-        <view style="height: 100px;"></view>
       </view>
+
+      <view style="height: 24px;"></view>
     </scroll-view>
-
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { UserMenuItem } from '../../types/user'
+import { ref } from 'vue'
 
-const loading = ref(true)
-const API_BASE_URL = 'http://localhost:3000'
-const TOKEN_KEY = 'token'
-
-const nickname = ref('数字游民')
-const tagline = ref('已在--旅居 0 天')
-const avatar = ref('/static/logo.png')
-const currentCity = ref('--')
-const nomadDays = ref(0)
-const displayTags = ref<string[]>(['旅居中'])
-const walletBalance = ref(0)
-const walletIncome = ref(3200)
-const resumeCompletion = ref(85)
-const favoriteCities = ref<string[]>(['鹤岗', '伊春'])
-const dashboard = ref({
-  appliedJobs: 0,
-  postedRooms: 0,
-  joinedParties: 0
-})
-const isEditing = ref(false)
-const savingProfile = ref(false)
-const uploadingAvatar = ref(false)
-const editingUsername = ref('')
-const editingTagline = ref('')
-
-interface ApiUserProfile {
-  id: number
-  username: string
-  avatar: string
-  tagline: string
-  balance: number | string
-  created_at: string
-}
-
-interface ApiUserProfileResponse {
+interface ProfileResponse {
   ok: boolean
-  data?: ApiUserProfile
+  data?: Record<string, unknown>
   message?: string
 }
 
-interface ApiProfileUpdateResponse {
-  success: boolean
+interface FavoriteResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
   message?: string
 }
 
-interface ApiAvatarUploadResponse {
-  success: boolean
-  avatarUrl?: string
-  message?: string
+interface ProfileInfo {
+  nickname: string
+  bio: string
+  avatar: string
 }
+
+interface HouseItem {
+  id: string
+  city_id: string
+  city_name: string
+  title: string
+  cover_image: string
+  price: number
+  district: string
+  tags: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+const LOGIN_FLAG_KEY = 'isLogged'
+
+const isLogged = ref(false)
+const userInfo = ref<ProfileInfo | null>(null)
+const favoriteList = ref<HouseItem[]>([])
+const loadingFavorites = ref(true)
+let hasLoaded = false
 
 function parseApiPayload<T>(raw: unknown): T | null {
   if (raw != null && typeof raw == 'object') {
     return raw as T
   }
-
   if (typeof raw == 'string') {
     const text = raw.trim()
-    const first = text[0] ?? ''
-    if (text == '' || (first != '{' && first != '[')) {
+    if (text == '') {
       return null
     }
     try {
@@ -182,374 +142,298 @@ function parseApiPayload<T>(raw: unknown): T | null {
       return null
     }
   }
-
   return null
 }
 
-const dashboardCards = computed(() => [
-  { id: 'gigs', icon: '💼', title: '搞钱', value: dashboard.value.appliedJobs },
-  { id: 'sublet', icon: '🏠', title: '安家', value: dashboard.value.postedRooms },
-  { id: 'social', icon: '💜', title: '搭子', value: dashboard.value.joinedParties }
-])
+function splitTags(rawTags: string): string[] {
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[、,，;；|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
 
-const menuItems = computed<UserMenuItem[]>(() => {
-  return [
-    { id: 'resume', title: '我的简历', desc: `完整度 ${resumeCompletion.value}%` },
-    { id: 'favorites', title: '收藏城市', desc: favoriteCities.value.length == 0 ? '暂无收藏' : favoriteCities.value.join(' · ') },
-    { id: 'settings', title: '系统设置', desc: '通知、隐私、账号安全' }
-  ]
+function priceText(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '--'
+  }
+  return String(Math.round(value))
+}
+
+function coverUrl(value: string): string {
+  const text = String(value || '').trim()
+  if (text != '') {
+    return text
+  }
+  return '/static/images/2.jpg'
+}
+
+function mapHouseRow(row: Record<string, unknown>): HouseItem {
+  return {
+    id: String(row.id ?? ''),
+    city_id: String(row.city_id ?? ''),
+    city_name: String(row.city_name ?? ''),
+    title: String(row.title ?? ''),
+    cover_image: String(row.cover_image ?? ''),
+    price: Number(row.price ?? 0),
+    district: String(row.district ?? ''),
+    tags: String(row.tags ?? '')
+  }
+}
+
+function applyProfile(row: Record<string, unknown>) {
+  const nickname = String(row.nickname ?? '').trim()
+  const bio = String(row.bio ?? '').trim()
+  const avatar = String(row.avatar ?? '').trim()
+
+  userInfo.value = {
+    nickname: nickname != '' ? nickname : '数字游民',
+    bio: bio != '' ? bio : '今天也在低成本生活',
+    avatar
+  }
+}
+
+async function fetchProfile() {
+  return new Promise<void>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/user/profile',
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<ProfileResponse>(res.data)
+        if (payload == null || payload.ok != true || payload.data == null) {
+          reject(payload?.message ?? 'profile is empty')
+          return
+        }
+        applyProfile(payload.data)
+        resolve()
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+async function fetchFavorites() {
+  return new Promise<void>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/user/favorites',
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<FavoriteResponse>(res.data)
+        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
+          reject(payload?.message ?? 'favorites is empty')
+          return
+        }
+        favoriteList.value = payload.data.map((item) => mapHouseRow(item))
+        resolve()
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+function goDetail(id: string) {
+  uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
+}
+
+function onLogout() {
+  uni.showModal({
+    title: '确认退出',
+    content: '确定要退出当前账号吗？',
+    confirmText: '确定',
+    cancelText: '取消',
+    success: (res) => {
+      if (!res.confirm) {
+        return
+      }
+      uni.removeStorageSync(LOGIN_FLAG_KEY)
+      isLogged.value = false
+      userInfo.value = null
+      favoriteList.value = []
+      loadingFavorites.value = false
+      uni.showToast({ title: '已退出', icon: 'none' })
+    }
+  })
+}
+
+function onProfileCardClick() {
+  if (isLogged.value) {
+    return
+  }
+  uni.navigateTo({ url: '/pages/login/login' })
+}
+
+function getIsLogged(): boolean {
+  const value = uni.getStorageSync(LOGIN_FLAG_KEY)
+  if (value === true || value === 1) {
+    return true
+  }
+  if (typeof value == 'string') {
+    const text = value.trim().toLowerCase()
+    return text == 'true' || text == '1'
+  }
+  return false
+}
+
+async function refreshUserCenter() {
+  isLogged.value = getIsLogged()
+  if (!isLogged.value) {
+    userInfo.value = null
+    favoriteList.value = []
+    loadingFavorites.value = false
+    return
+  }
+
+  loadingFavorites.value = true
+  try {
+    await Promise.all([fetchProfile(), fetchFavorites()])
+  } catch (error) {
+    console.error('[user] load data failed:', error)
+    userInfo.value = null
+    uni.showToast({ title: '加载我的页面失败', icon: 'none' })
+  } finally {
+    loadingFavorites.value = false
+  }
+}
+
+onLoad(async () => {
+  await refreshUserCenter()
+  hasLoaded = true
 })
 
-function formatCurrency(value: number): string {
-  const fixed = value.toFixed(2)
-  if (fixed.endsWith('.00')) {
-    return fixed.slice(0, fixed.length - 3)
-  }
-  return fixed
-}
-
-const walletBalanceText = computed(() => formatCurrency(walletBalance.value))
-const walletIncomeText = computed(() => formatCurrency(walletIncome.value))
-let isNavigatingToLogin = false
-
-function getToken(): string {
-  const token = uni.getStorageSync(TOKEN_KEY)
-  return typeof token == 'string' ? token.trim() : ''
-}
-
-function getAuthHeader(): any {
-  const token = getToken()
-  if (token == '') {
-    return {}
-  }
-  return {
-    Authorization: `Bearer ${token}`
-  }
-}
-
-function redirectToLogin(message?: string) {
-  if (isNavigatingToLogin) {
+onShow(async () => {
+  if (!hasLoaded) {
     return
   }
-  isNavigatingToLogin = true
-  uni.removeStorageSync(TOKEN_KEY)
-  if (message != null && message != '') {
-    uni.showToast({ title: message, icon: 'none' })
-  }
-  setTimeout(() => {
-    uni.reLaunch({ url: '/pages/login/login' })
-    isNavigatingToLogin = false
-  }, 200)
-}
-
-const onMenuClick = (id: string) => {
-  if (id == 'resume') {
-    uni.showToast({ title: '简历模块开发中', icon: 'none' })
-  } else if (id == 'favorites') {
-    uni.showToast({ title: '收藏城市功能开发中', icon: 'none' })
-  } else {
-    uni.showToast({ title: '系统设置开发中', icon: 'none' })
-  }
-}
-
-const onLogout = () => {
-  uni.removeStorageSync(TOKEN_KEY)
-  uni.reLaunch({ url: '/pages/login/login' })
-}
-
-function parseTagline(taglineText: string): { city: string; days: number } | null {
-  const text = (taglineText ?? '').trim()
-  const matched = text.match(/已在(.+?)旅居\s*(\d+)\s*天/)
-  if (matched != null) {
-    return {
-      city: matched[1] ?? '--',
-      days: Number(matched[2] ?? '0')
-    }
-  }
-  return null
-}
-
-function toNumber(value: number | string, fallback: number): number {
-  const parsed = typeof value == 'number' ? value : parseFloat(value)
-  return isNaN(parsed) ? fallback : parsed
-}
-
-function applyTagline(taglineText: string) {
-  const parsed = parseTagline(taglineText)
-  if (parsed == null) {
-    currentCity.value = '--'
-    nomadDays.value = 0
-    displayTags.value = ['旅居中', '大本营模式']
-    return
-  }
-
-  currentCity.value = parsed.city
-  nomadDays.value = parsed.days
-  displayTags.value = [`${currentCity.value}旅居`, '大本营模式']
-}
-
-function readInputValue(event: any): string {
-  if (event == null) {
-    return ''
-  }
-
-  if (typeof event == 'string') {
-    return event
-  }
-
-  const detailValue = event?.detail?.value
-  if (typeof detailValue == 'string') {
-    return detailValue
-  }
-
-  const targetValue = event?.target?.value
-  if (typeof targetValue == 'string') {
-    return targetValue
-  }
-
-  const rawValue = event?.value
-  if (typeof rawValue == 'string') {
-    return rawValue
-  }
-
-  return ''
-}
-
-const onEditingUsernameInput = (event: any) => {
-  editingUsername.value = readInputValue(event)
-}
-
-const onEditingTaglineInput = (event: any) => {
-  editingTagline.value = readInputValue(event)
-}
-
-function applyUserProfile(profile: ApiUserProfile) {
-  nickname.value = profile.username ?? nickname.value
-  tagline.value = profile.tagline != '' ? profile.tagline : tagline.value
-  avatar.value = profile.avatar != '' ? profile.avatar : '/static/logo.png'
-  walletBalance.value = toNumber(profile.balance, walletBalance.value)
-  applyTagline(tagline.value)
-  if (!isEditing.value) {
-    editingUsername.value = nickname.value
-    editingTagline.value = tagline.value
-  }
-}
-
-const startEditProfile = () => {
-  editingUsername.value = nickname.value
-  editingTagline.value = tagline.value
-  isEditing.value = true
-}
-
-const cancelEditProfile = () => {
-  editingUsername.value = nickname.value
-  editingTagline.value = tagline.value
-  isEditing.value = false
-}
-
-const onChangeAvatar = async () => {
-  if (!isEditing.value || uploadingAvatar.value) {
-    return
-  }
-
-  try {
-    const filePath = await new Promise<string>((resolve, reject) => {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        success: (res) => {
-          const path = (res.tempFilePaths?.[0] as string | undefined) ?? ''
-          if (path == '') {
-            reject('No image selected')
-            return
-          }
-          resolve(path)
-        },
-        fail: (err) => reject(err)
-      })
-    })
-
-    uploadingAvatar.value = true
-    await new Promise<void>((resolve, reject) => {
-      uni.uploadFile({
-        url: `${API_BASE_URL}/api/user/avatar`,
-        filePath,
-        name: 'avatar',
-        header: getAuthHeader() as any,
-        success: (res) => {
-          const payload = parseApiPayload<ApiAvatarUploadResponse>(res.data)
-          if (res.statusCode == 401) {
-            reject('UNAUTHORIZED')
-            return
-          }
-          if (res.statusCode != 200) {
-            reject(payload?.message ?? `上传失败: ${res.statusCode}`)
-            return
-          }
-          if (payload == null || payload.success != true || payload.avatarUrl == null || payload.avatarUrl == '') {
-            reject(payload?.message ?? '头像上传失败')
-            return
-          }
-          avatar.value = payload.avatarUrl
-          resolve()
-        },
-        fail: (err) => reject(err)
-      })
-    })
-
-    uni.showToast({ title: '头像已更新', icon: 'success' })
-  } catch (error) {
-    const errorText = JSON.stringify(error)
-    if (errorText.includes('cancel')) {
-      return
-    }
-    if (String(error) == 'UNAUTHORIZED') {
-      redirectToLogin('登录已过期，请重新登录')
-      return
-    }
-    console.error('[onChangeAvatar] failed:', error)
-    const failMessage = typeof error == 'string' && error != '' ? error : '头像上传失败'
-    uni.showToast({ title: failMessage, icon: 'none' })
-  } finally {
-    uploadingAvatar.value = false
-  }
-}
-
-const saveProfile = async () => {
-  if (savingProfile.value) {
-    return
-  }
-
-  const nextUsername = editingUsername.value.trim()
-  const nextTagline = editingTagline.value.trim()
-  const nextAvatar = avatar.value.trim() == '' ? '/static/logo.png' : avatar.value.trim()
-  if (nextUsername == '' || nextTagline == '') {
-    uni.showToast({ title: '昵称和签名不能为空', icon: 'none' })
-    return
-  }
-
-  savingProfile.value = true
-  try {
-    await new Promise<void>((resolve, reject) => {
-      uni.request({
-        url: `${API_BASE_URL}/api/user/profile`,
-        method: 'PUT',
-        header: getAuthHeader() as any,
-        data: {
-          avatar: nextAvatar,
-          username: nextUsername,
-          tagline: nextTagline
-        },
-        success: (res) => {
-          if (res.statusCode == 401) {
-            reject('UNAUTHORIZED')
-            return
-          }
-          if (res.statusCode != 200) {
-            if (res.statusCode == 404) {
-              reject('接口不存在，请重启后端服务')
-              return
-            }
-            reject(`请求失败: ${res.statusCode}`)
-            return
-          }
-          const payload = parseApiPayload<ApiProfileUpdateResponse>(res.data)
-          if (payload == null) {
-            reject('返回数据格式错误，请检查后端')
-            return
-          }
-          if (payload.success != true) {
-            reject(payload.message ?? '保存失败')
-            return
-          }
-          resolve()
-        },
-        fail: (err) => reject(err)
-      })
-    })
-
-    avatar.value = nextAvatar
-    nickname.value = nextUsername
-    tagline.value = nextTagline
-    applyTagline(nextTagline)
-    isEditing.value = false
-    uni.showToast({ title: '保存成功', icon: 'success' })
-  } catch (error) {
-    if (String(error) == 'UNAUTHORIZED') {
-      redirectToLogin('登录已过期，请重新登录')
-      return
-    }
-    console.error('[saveProfile] failed:', error)
-    uni.showToast({ title: '保存失败，请检查后端', icon: 'none' })
-  } finally {
-    savingProfile.value = false
-  }
-}
-
-const fetchUserProfile = async () => {
-  try {
-    await new Promise<void>((resolve, reject) => {
-      uni.request({
-        url: `${API_BASE_URL}/api/user/profile`,
-        method: 'GET',
-        header: getAuthHeader() as any,
-        success: (res) => {
-          if (res.statusCode == 401) {
-            reject('UNAUTHORIZED')
-            return
-          }
-          if (res.statusCode != 200) {
-            reject(`请求失败: ${res.statusCode}`)
-            return
-          }
-          const payload = parseApiPayload<ApiUserProfileResponse>(res.data)
-          if (payload == null || !payload.ok || payload.data == null) {
-            reject(payload?.message ?? '用户信息为空')
-            return
-          }
-          applyUserProfile(payload.data)
-          resolve()
-        },
-        fail: (err) => reject(err)
-      })
-    })
-  } catch (error) {
-    if (String(error) == 'UNAUTHORIZED') {
-      redirectToLogin('登录已过期，请重新登录')
-      return
-    }
-    console.error('[fetchUserProfile] failed:', error)
-    uni.showToast({ title: '用户数据加载失败', icon: 'none' })
-  } finally {
-    loading.value = false
-  }
-}
-
-onLoad(() => {
-  if (getToken() == '') {
-    loading.value = false
-    redirectToLogin('请先登录')
-    return
-  }
-  fetchUserProfile()
+  await refreshUserCenter()
 })
 </script>
 
 <style scoped>
 .page {
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-image: linear-gradient(180deg, #edf0f4 0%, #f8f9fb 100%);
+  background-color: #f6f6f3;
 }
 
 .content {
-  flex: 1;
-  padding: 14px 14px 0;
+  height: 100%;
+  padding: 0 14px;
+  padding-bottom: calc(120rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
 }
 
-.state-box {
-  padding-top: 80px;
+.hero {
+  margin: 14px 0 12px;
+  border-radius: 18px;
+  padding: 18px 14px;
+  background-image: linear-gradient(135deg, #dff3ea 0%, #edf5de 48%, #f4efd9 100%);
+}
+
+.profile-card {
+  flex-direction: row;
+  align-items: center;
+}
+
+.profile-card-guest {
+  opacity: 0.98;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  background-color: #f3f4f6;
+}
+
+.avatar-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  align-items: center;
+  justify-content: center;
+  background-color: #e5e7eb;
+}
+
+.avatar-fallback-icon {
+  font-size: 28px;
+  color: #6b7280;
+}
+
+.profile-main {
+  flex: 1;
+  margin-left: 12px;
+}
+
+.nickname {
+  font-size: 24px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.bio {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.stats-panel {
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  border: 1px solid #eceff3;
+  flex-direction: row;
+  padding: 10px 0;
+}
+
+.stat-item {
+  flex: 1;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  color: #1f2937;
+  font-weight: 900;
+}
+
+.section-head {
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 18px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.guest-placeholder-wrap {
+  padding: 52px 0 36px;
+  align-items: center;
+}
+
+.guest-placeholder-text {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.state-wrap {
+  padding-top: 88px;
   align-items: center;
 }
 
@@ -558,322 +442,97 @@ onLoad(() => {
   color: #8c8c8c;
 }
 
-.identity-card {
-  position: relative;
-  min-height: 300px;
-  border-radius: 18px;
+.house-card {
+  margin-bottom: 14px;
+  background-color: #ffffff;
+  border-radius: 16px;
   overflow: hidden;
-  background-color: #1f252f;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
 }
 
-.identity-bg {
-  width: 100%;
-  height: 300px;
-}
-
-.identity-mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background-image: linear-gradient(180deg, rgba(13, 18, 24, 0.15) 0%, rgba(13, 18, 24, 0.85) 100%);
-}
-
-.identity-main {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  padding: 22px 18px 18px;
-  align-items: center;
-  justify-content: center;
-}
-
-.avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 36px;
-  border-width: 2px;
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.65);
-}
-
-.avatar-wrap {
+.card-image-wrap {
   position: relative;
-  width: 72px;
-  height: 72px;
+  height: 188px;
 }
 
-.avatar-wrap-editing {
-  transform: scale(1.02);
-}
-
-.avatar-edit-mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 36px;
-  background-color: rgba(0, 0, 0, 0.46);
-  justify-content: center;
-  align-items: center;
-  padding: 0 8px;
-}
-
-.avatar-edit-text {
-  color: #ffffff;
-  font-size: 10px;
-  line-height: 14px;
-  text-align: center;
-  font-weight: 700;
-}
-
-.nickname {
-  margin-top: 10px;
-  color: #ffffff;
-  font-size: 24px;
-  font-weight: 900;
-}
-
-.profile-title-wrap {
-  align-items: center;
-}
-
-.profile-edit-wrap {
-  margin-top: 14px;
+.card-image {
   width: 100%;
-  align-items: center;
+  height: 100%;
 }
 
-.profile-input {
-  width: 250px;
-  height: 38px;
-  margin-top: 10px;
-  padding: 0 12px;
-  border-radius: 8px;
+.green-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  font-size: 11px;
   color: #ffffff;
-  font-size: 14px;
-  text-align: center;
-  background-color: rgba(0, 0, 0, 0.3);
-  border-width: 1px;
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+  border-radius: 999px;
+  background-color: rgba(34, 197, 94, 0.92);
+  padding: 5px 10px;
 }
 
-.profile-input:first-child {
-  margin-top: 0;
-}
-
-.profile-input-placeholder {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-}
-
-.profile-actions {
-  margin-top: 16px;
-  align-items: center;
-}
-
-.profile-btn-group {
-  flex-direction: row;
-  align-items: center;
-}
-
-.profile-btn {
-  border-radius: 16px;
-  padding: 8px 22px;
-}
-
-.profile-btn-edit {
-  background-color: rgba(255, 255, 255, 0.28);
-  border-width: 1px;
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.34);
-}
-
-.profile-btn-save {
-  background-color: #2f9d66;
-}
-
-.profile-btn-cancel {
-  margin-left: 15px;
-  background-color: rgba(255, 255, 255, 0.92);
-}
-
-.profile-btn-text {
+.price-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 18px;
   color: #ffffff;
+  font-weight: 900;
+  border-radius: 999px;
+  background-image: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+  padding: 7px 12px;
+  box-shadow: 0 8px 18px rgba(249, 115, 22, 0.32);
+}
+
+.card-content {
+  padding: 12px;
+}
+
+.card-title {
+  font-size: 17px;
+  line-height: 24px;
+  color: #111827;
+  font-weight: 900;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.card-location {
+  margin-top: 7px;
   font-size: 13px;
-  font-weight: 700;
-}
-
-.profile-btn-text-dark {
-  color: #1f2937;
-}
-
-.nomad-pill {
-  margin-top: 8px;
-  padding: 6px 12px;
-  border-radius: 16px;
-  color: #fefefe;
-  font-size: 12px;
-  background-color: rgba(255, 255, 255, 0.2);
-  font-weight: 700;
+  color: #6b7280;
 }
 
 .tag-row {
   margin-top: 10px;
   flex-direction: row;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
-.tag-pill {
-  margin: 0 4px 6px;
-  padding: 4px 10px;
-  border-radius: 14px;
-  color: #e8edf6;
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
   font-size: 11px;
-  background-color: rgba(13, 18, 24, 0.35);
-}
-
-.wallet-box {
-  margin-top: 10px;
-  width: 100%;
-  border-radius: 12px;
-  padding: 10px 8px;
-  background-color: rgba(255, 255, 255, 0.18);
-  border-width: 1px;
-  border-style: solid;
-  border-color: rgba(255, 255, 255, 0.24);
-  flex-direction: row;
-  align-items: center;
-}
-
-.wallet-col {
-  flex: 1;
-  align-items: center;
-}
-
-.wallet-label {
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 11px;
-}
-
-.wallet-value {
-  margin-top: 4px;
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.wallet-divider {
-  width: 1px;
-  height: 24px;
-  background-color: rgba(255, 255, 255, 0.35);
-}
-
-.panel {
-  margin-top: 14px;
-  padding: 16px 14px;
-  border-radius: 16px;
-  background-color: #ffffff;
-  border-width: 1px;
-  border-style: solid;
-  border-color: #eceff3;
-}
-
-.panel-title {
-  font-size: 15px;
-  color: #111827;
-  font-weight: 800;
-}
-
-.dashboard-grid {
-  margin-top: 12px;
-  flex-direction: row;
-}
-
-.metric-card {
-  flex: 1;
-  align-items: center;
-  padding: 12px 0;
-  border-radius: 12px;
-  background-color: #f6f7f9;
-  margin-right: 8px;
-}
-
-.metric-card:last-child {
-  margin-right: 0;
-}
-
-.metric-icon {
-  font-size: 18px;
-}
-
-.metric-value {
-  margin-top: 5px;
-  font-size: 20px;
-  color: #333333;
-  font-weight: 900;
-}
-
-.metric-label {
-  margin-top: 3px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.menu-row {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 2px;
-  border-bottom-width: 1px;
-  border-bottom-style: solid;
-  border-bottom-color: #f1f3f5;
-}
-
-.menu-left {
-  flex: 1;
-}
-
-.menu-title {
-  font-size: 14px;
-  color: #1f2937;
-  font-weight: 700;
-}
-
-.menu-desc {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.menu-arrow {
-  color: #a3a3a3;
-  font-size: 20px;
+  color: #475569;
+  border-radius: 999px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 4px 9px;
 }
 
 .logout-btn {
-  margin-top: 14px;
-  height: 44px;
-  border-radius: 22px;
+  margin-top: 8px;
+  height: 46px;
+  border-radius: 12px;
   justify-content: center;
   align-items: center;
-  background-color: #333333;
-}
-
-.logout-btn-active {
-  opacity: 0.9;
-  transform: scale(0.98);
+  background-color: #ffffff;
 }
 
 .logout-text {
-  color: #ffffff;
   font-size: 14px;
-  font-weight: 700;
+  color: #b45353;
+  font-weight: 500;
 }
 </style>

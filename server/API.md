@@ -240,7 +240,12 @@ Common errors:
 
 ### `GET /api/user/profile`
 
-Get current user profile (auth required).
+Get user profile for MVP mode.
+
+Notes:
+
+- No login required in MVP.
+- Server returns fixed `user_id = 1`.
 
 Response `200`:
 
@@ -248,83 +253,47 @@ Response `200`:
 {
   "ok": true,
   "data": {
-    "id": 8,
-    "phone": "13800000000",
-    "username": "nomad0088",
-    "avatar": "/static/logo.png",
-    "tagline": "Start your nomad life today",
-    "balance": "0.00",
-    "created_at": "2026-02-20T18:58:00.000Z"
+    "id": 1,
+    "nickname": "鹤岗野生游民",
+    "bio": "已在东北躺平 30 天，精神状态良好。",
+    "avatar": ""
   }
 }
 ```
 
 Common errors:
 
-- `401` token missing/invalid/expired
 - `404` user profile not found
 - `500` failed to fetch user profile
 
-### `PUT /api/user/profile`
+### `GET /api/user/favorites`
 
-Update current user profile (auth required).
-
-Request body:
-
-```json
-{
-  "username": "new-name",
-  "tagline": "API doc sync 2026-02-21",
-  "avatar": "https://example.com/avatar.jpg"
-}
-```
-
-Notes:
-
-- `username` is required
-- `tagline` is required
-- `avatar` is optional
+Fetch favorite houses for MVP user (`user_id = 1`).
 
 Response `200`:
 
 ```json
 {
-  "success": true,
-  "message": "Profile updated"
+  "ok": true,
+  "data": [
+    {
+      "id": 3,
+      "city_id": 1,
+      "city_name": "黑龙江鹤岗市/兴安区、东山区岭北小区",
+      "title": "老破小但温馨，下楼就是早市，贼便宜",
+      "cover_image": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2",
+      "price": 150,
+      "district": "东山区",
+      "tags": "生活便利,超低价",
+      "created_at": "2026-02-20T20:46:44.000Z"
+    }
+  ]
 }
 ```
 
 Common errors:
 
-- `400` username and tagline are required
-- `401` token missing/invalid/expired
-- `404` user not found
-- `500` failed to update profile
-
-### `POST /api/user/avatar`
-
-Upload avatar (auth required).
-
-Content type: `multipart/form-data`
-
-Form fields:
-
-- `avatar`: image file (required, max 5 MB)
-
-Response `200`:
-
-```json
-{
-  "success": true,
-  "avatarUrl": "https://<bucket>.<endpoint>/avatars/<file>"
-}
-```
-
-Common errors:
-
-- `400` file missing, non-image file, or file too large
-- `401` token missing/invalid/expired
-- `500` OSS not configured or upload failed
+- `500` failed to fetch favorite houses
 
 ## Regression Test Snapshot (2026-02-21)
 
@@ -343,13 +312,8 @@ Environment: existing service on `localhost:3000`, MySQL connected, OSS configur
 | city_houses_ok | GET | `/api/cities/1/houses` | `200` |
 | jobs_list_ok | GET | `/api/jobs` | `200` |
 | companions_list_ok | GET | `/api/companions` | `200` |
-| profile_no_auth | GET | `/api/user/profile` | `401` |
-| profile_bad_token | GET | `/api/user/profile` | `401` |
 | profile_get_ok | GET | `/api/user/profile` | `200` |
-| profile_put_missing | PUT | `/api/user/profile` | `400` |
-| profile_put_ok | PUT | `/api/user/profile` | `200` |
-| avatar_missing_file | POST | `/api/user/avatar` | `400` |
-| avatar_upload_ok | POST | `/api/user/avatar` | `200` |
+| favorites_get_ok | GET | `/api/user/favorites` | `200` |
 
 Observed data snapshot during this run:
 

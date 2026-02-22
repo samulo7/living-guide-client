@@ -27,12 +27,12 @@ async function repairUsersTable() {
     return
   }
 
-  columns = await ensureColumn('users', 'username', 'ALTER TABLE users ADD COLUMN username VARCHAR(100) NULL AFTER password')
-  columns = await ensureColumn('users', 'tagline', "ALTER TABLE users ADD COLUMN tagline VARCHAR(255) NULL AFTER avatar")
+  columns = await ensureColumn('users', 'username', 'ALTER TABLE users ADD COLUMN username VARCHAR(100) NULL')
+  columns = await ensureColumn('users', 'tagline', "ALTER TABLE users ADD COLUMN tagline VARCHAR(255) NULL")
   columns = await ensureColumn(
     'users',
     'balance',
-    'ALTER TABLE users ADD COLUMN balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00 AFTER tagline'
+    'ALTER TABLE users ADD COLUMN balance DECIMAL(10, 2) NOT NULL DEFAULT 0.00'
   )
 
   if (columns != null && columns.has('nickname')) {
@@ -49,11 +49,19 @@ async function repairUsersTable() {
     `)
   }
 
-  await pool.query(`
-    UPDATE users
-    SET tagline = COALESCE(NULLIF(tagline, ''), 'New nomad life starts today')
-    WHERE tagline IS NULL OR tagline = ''
-  `)
+  if (columns != null && columns.has('bio')) {
+    await pool.query(`
+      UPDATE users
+      SET tagline = COALESCE(NULLIF(tagline, ''), NULLIF(bio, ''), 'New nomad life starts today')
+      WHERE tagline IS NULL OR tagline = ''
+    `)
+  } else {
+    await pool.query(`
+      UPDATE users
+      SET tagline = COALESCE(NULLIF(tagline, ''), 'New nomad life starts today')
+      WHERE tagline IS NULL OR tagline = ''
+    `)
+  }
 
   await pool.query('ALTER TABLE users MODIFY COLUMN username VARCHAR(100) NOT NULL')
   await pool.query('ALTER TABLE users MODIFY COLUMN tagline VARCHAR(255) NOT NULL')
@@ -253,11 +261,74 @@ async function repairCompanionsTable() {
   await seedCompanions()
 }
 
+async function ensureFavoritesTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS favorites (
+      id INT NOT NULL AUTO_INCREMENT,
+      user_id INT NOT NULL,
+      house_id INT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_favorites_user_id (user_id),
+      KEY idx_favorites_house_id (house_id),
+      UNIQUE KEY uk_favorites_user_house (user_id, house_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `)
+}
+
+async function seedFavorites() {
+  const [houseRows] = await pool.query(`
+    SELECT id
+    FROM houses
+    ORDER BY price ASC, id ASC
+    LIMIT 2
+  `)
+
+  if (!Array.isArray(houseRows) || houseRows.length == 0) {
+    return
+  }
+
+  for (let i = 0; i < houseRows.length; i++) {
+    const row = houseRows[i] || {}
+    const houseId = Number(row.id || 0)
+    if (!Number.isInteger(houseId) || houseId <= 0) {
+      continue
+    }
+    await pool.query(
+      `
+        INSERT INTO favorites (user_id, house_id, created_at)
+        SELECT 1, ?, DATE_SUB(NOW(), INTERVAL ? DAY)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM favorites WHERE user_id = 1 AND house_id = ?
+        )
+      `,
+      [houseId, i, houseId]
+    )
+  }
+}
+
+async function repairFavoritesTable() {
+  await ensureFavoritesTable()
+  const columns = await getTableColumns('favorites')
+  if (columns == null) {
+    return
+  }
+
+  await ensureColumn('favorites', 'user_id', 'ALTER TABLE favorites ADD COLUMN user_id INT NOT NULL DEFAULT 1 AFTER id')
+  await ensureColumn('favorites', 'house_id', 'ALTER TABLE favorites ADD COLUMN house_id INT NOT NULL DEFAULT 0 AFTER user_id')
+
+  const housesColumns = await getTableColumns('houses')
+  if (housesColumns != null) {
+    await seedFavorites()
+  }
+}
+
 async function repairDbSchema() {
   await repairUsersTable()
   await repairCitiesTable()
   await repairJobsTable()
   await repairCompanionsTable()
+  await repairFavoritesTable()
 }
 
 module.exports = {

@@ -180,6 +180,36 @@ Common errors:
 - `400` invalid city id
 - `500` failed to fetch city houses
 
+### `GET /api/jobs`
+
+Fetch latest jobs with city relation.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": 1,
+      "city_id": 1,
+      "title": "网吧夜班网管",
+      "salary": "¥180/天",
+      "company": "鹤岗兴安电竞馆",
+      "is_remote": 0,
+      "tags": "包吃住、夜班补贴、可留宿",
+      "description": "负责夜间值班与基础设备维护，工作节奏平稳，适合短住期间补贴生活费。",
+      "created_at": "2026-02-22T00:00:00.000Z",
+      "city_name": "鹤岗市"
+    }
+  ]
+}
+```
+
+Common errors:
+
+- `500` failed to fetch jobs
+
 ### `GET /api/user/profile`
 
 Get current user profile (auth required).
@@ -283,6 +313,7 @@ Environment: existing service on `localhost:3000`, MySQL connected, OSS configur
 | cities_under500 | GET | `/api/cities?filter=under500` | `200` |
 | cities_verified_maxRent | GET | `/api/cities?verified=true&maxRent=600` | `200` |
 | city_houses_ok | GET | `/api/cities/1/houses` | `200` |
+| jobs_list_ok | GET | `/api/jobs` | `200` |
 | profile_no_auth | GET | `/api/user/profile` | `401` |
 | profile_bad_token | GET | `/api/user/profile` | `401` |
 | profile_get_ok | GET | `/api/user/profile` | `200` |

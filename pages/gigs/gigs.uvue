@@ -1,79 +1,184 @@
 <template>
-  <view class="container">
-    <view class="header">
-      <text class="title">旅居搞钱</text>
-      <text class="subtitle">远程兼职机会 + 生存指数</text>
+  <view class="page">
+    <view class="hero">
+      <text class="hero-title">搞钱大厅</text>
+      <text class="hero-subtitle">不赚钱怎么躺平？搞点伙食费</text>
+      <view class="hero-tips">
+        <text class="hero-tip">兼职补贴</text>
+        <text class="hero-tip">包吃住义工</text>
+        <text class="hero-tip">可远程</text>
+      </view>
     </view>
 
-    <scroll-view class="tag-scroll" direction="horizontal" :show-scrollbar="false">
-      <view class="tag-wrap">
-        <view
-          v-for="tag in tagList"
-          :key="tag"
-          class="filter-tag"
-          :class="{ active: currentTag === tag }"
-          @click="currentTag = tag"
-        >
-          <text :class="['filter-text', currentTag === tag ? 'active-text' : '']">{{ formatTag(tag) }}</text>
-        </view>
-        <view style="width: 20px; height: 10px;"></view>
-      </view>
-    </scroll-view>
-
-    <scroll-view class="list" direction="vertical">
-      <view v-if="loading" class="state-box">
+    <scroll-view class="list-scroll" direction="vertical">
+      <view v-if="loading" class="state-wrap">
         <text class="state-text">正在加载职位...</text>
       </view>
 
-      <view v-else-if="filteredJobs.length === 0" class="state-box">
-        <text class="state-text">当前筛选下暂无职位</text>
+      <view v-else-if="jobList.length == 0" class="state-wrap">
+        <text class="state-text">当前暂无可投递职位</text>
       </view>
 
       <view v-else>
-        <job-card
-          v-for="job in filteredJobs"
-          :key="job.id"
-          :data="job"
-          :city-name="getBaseCity(job).name"
-          :coverage-percent="getCoverage(job)"
-          @click="goToDetail(job.id)"
-        />
-      </view>
-      <view style="height: 96px;"></view>
-    </scroll-view>
+        <view class="job-card" v-for="job in jobList" :key="job.id">
+          <view class="job-head">
+            <text class="job-title">{{ job.title }}</text>
+            <text class="job-salary">{{ salaryText(job.salary) }}</text>
+          </view>
 
+          <text class="job-company">{{ job.company != '' ? job.company : '匿名雇主' }}</text>
+
+          <view class="meta-row">
+            <text v-if="job.is_remote == 1" class="remote-badge">🌐 可远程</text>
+            <text v-else class="city-text">📍 {{ cityText(job.city_name) }}</text>
+          </view>
+
+          <view class="tag-row" v-if="job.tags.length > 0">
+            <text
+              v-for="(tag, index) in job.tags"
+              :key="job.id + '-' + index"
+              :class="['tag-chip', 'tag-chip-' + String(index % 4)]"
+            >
+              {{ tag }}
+            </text>
+          </view>
+
+          <text class="job-desc">{{ job.description }}</text>
+        </view>
+      </view>
+
+      <view style="height: 20px;"></view>
+    </scroll-view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import JobCard from '../../components/JobCard.uvue'
-import type { JobItem } from '../../types/job'
-import { loadJobs, getAllJobTags, filterJobsByTag, getSurvivalCityById, calcCoveragePercent, calcCityLivingCost } from '../../utils/useJobs'
+import { ref } from 'vue'
 
-const jobs = ref<JobItem[]>([])
+interface JobListResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
+}
+
+interface JobItem {
+  id: string
+  title: string
+  salary: string
+  company: string
+  is_remote: number
+  city_name: string
+  tags: string[]
+  description: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+
 const loading = ref(true)
-const currentTag = ref('all')
+const jobList = ref<JobItem[]>([])
 
-const tagList = computed(() => ['all', ...getAllJobTags(jobs.value)])
-const filteredJobs = computed(() => filterJobsByTag(jobs.value, currentTag.value))
-
-const formatTag = (tag: string): string => (tag == 'all' ? '全部' : tag)
-const getBaseCity = (job: JobItem) => getSurvivalCityById(job.survival_city_ref)
-const getCoverage = (job: JobItem): number => {
-  const city = getBaseCity(job)
-  return calcCoveragePercent(job, calcCityLivingCost(city))
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
 }
 
-const goToDetail = (id: string) => {
-  uni.navigateTo({ url: `/pages/gigs/detail?id=${id}` })
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags
+      .map((item) => String(item || '').trim())
+      .filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[、,，;；|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
 }
 
-onMounted(async () => {
+function normalizeSalary(rawSalary: unknown): string {
+  const text = String(rawSalary || '').trim()
+  if (text == '') {
+    return '面议'
+  }
+  if (text.includes('¥') || text.includes('元')) {
+    return text
+  }
+  const amount = Number(text)
+  if (Number.isFinite(amount) && amount > 0) {
+    return '¥' + String(Math.round(amount))
+  }
+  return text
+}
+
+function mapJobRow(row: Record<string, unknown>): JobItem {
+  return {
+    id: String(row.id ?? ''),
+    title: String(row.title ?? ''),
+    salary: normalizeSalary(row.salary),
+    company: String(row.company ?? '').trim(),
+    is_remote: Number(row.is_remote ?? 0) == 1 ? 1 : 0,
+    city_name: String(row.city_name ?? '').trim(),
+    tags: splitTags(row.tags),
+    description: String(row.description ?? '').trim()
+  }
+}
+
+function salaryText(value: string): string {
+  const text = String(value || '').trim()
+  return text != '' ? text : '面议'
+}
+
+function cityText(value: string): string {
+  const text = String(value || '').trim()
+  return text != '' ? text : '城市待定'
+}
+
+async function fetchJobs(): Promise<JobItem[]> {
+  return new Promise<JobItem[]>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/jobs',
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<JobListResponse>(res.data)
+        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
+          reject(payload?.message ?? 'jobs is empty')
+          return
+        }
+        resolve(payload.data.map((item) => mapJobRow(item)))
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+onLoad(async () => {
+  loading.value = true
   try {
-    jobs.value = await loadJobs()
+    jobList.value = await fetchJobs()
   } catch (error) {
-    uni.showToast({ title: '职位数据加载失败', icon: 'none' })
+    console.error('[gigs] load jobs failed:', error)
+    jobList.value = []
+    uni.showToast({ title: '加载职位失败', icon: 'none' })
   } finally {
     loading.value = false
   }
@@ -81,79 +186,160 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.container {
+.page {
   height: 100vh;
-  background-color: #fffaf0;
-  display: flex;
-  flex-direction: column;
+  background-color: #f6f6f3;
 }
 
-.header {
-  padding: 50px 18px 14px;
-  background-image: linear-gradient(135deg, #ffd666 0%, #faad14 100%);
+.hero {
+  padding: 52px 16px 18px;
+  background-image: linear-gradient(135deg, #fdebd9 0%, #f6ead8 46%, #eaf5ea 100%);
 }
 
-.title {
-  font-size: 24px;
-  color: #613400;
+.hero-title {
+  font-size: 30px;
+  color: #1f2937;
   font-weight: 900;
 }
 
-.subtitle {
-  font-size: 13px;
-  color: rgba(97, 52, 0, 0.85);
-  margin-top: 4px;
+.hero-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #4b5563;
 }
 
-.tag-scroll {
-  width: 100%;
-  height: 52px;
-  background-color: #ffffff;
-}
-
-.tag-wrap {
+.hero-tips {
+  margin-top: 12px;
   flex-direction: row;
-  align-items: center;
-  padding: 10px 16px;
+  flex-wrap: wrap;
 }
 
-.filter-tag {
-  padding: 6px 14px;
-  border-radius: 16px;
-  background-color: #f5f5f5;
-  margin-right: 10px;
-  border-width: 1px;
-  border-style: solid;
-  border-color: transparent;
+.hero-tip {
+  margin-right: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #7c2d12;
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid rgba(217, 119, 6, 0.24);
+  background-color: rgba(255, 255, 255, 0.78);
 }
 
-.filter-text {
-  font-size: 13px;
-  color: #595959;
+.list-scroll {
+  height: calc(100vh - 146px);
+  padding: 12px 14px 0;
 }
 
-.active {
-  background-color: #fff7e6;
-  border-color: #faad14;
-}
-
-.active-text {
-  color: #ad6800;
-  font-weight: 700;
-}
-
-.list {
-  flex: 1;
-  padding: 10px 16px 0;
-}
-
-.state-box {
-  padding-top: 60px;
+.state-wrap {
+  padding-top: 88px;
   align-items: center;
 }
 
 .state-text {
   font-size: 14px;
   color: #8c8c8c;
+}
+
+.job-card {
+  margin-bottom: 14px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.job-head {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.job-title {
+  flex: 1;
+  padding-right: 10px;
+  font-size: 18px;
+  line-height: 25px;
+  color: #111827;
+  font-weight: 900;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+
+.job-salary {
+  font-size: 20px;
+  color: #f97316;
+  font-weight: 900;
+}
+
+.job-company {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.meta-row {
+  margin-top: 8px;
+}
+
+.remote-badge {
+  align-self: flex-start;
+  font-size: 12px;
+  color: #166534;
+  font-weight: 700;
+  border-radius: 999px;
+  background-color: #dcfce7;
+  padding: 4px 10px;
+}
+
+.city-text {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.tag-row {
+  margin-top: 10px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+
+.tag-chip-0 {
+  color: #155e75;
+  background-color: #ecfeff;
+  border: 1px solid #a5f3fc;
+}
+
+.tag-chip-1 {
+  color: #7c2d12;
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.tag-chip-2 {
+  color: #166534;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.tag-chip-3 {
+  color: #1e3a8a;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.job-desc {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #475569;
+  lines: 2;
+  text-overflow: ellipsis;
 }
 </style>

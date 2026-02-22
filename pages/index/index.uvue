@@ -1,5 +1,5 @@
 <template>
-  <view class="container">
+  <view class="page">
     <view class="header">
       <view class="header-text">
         <text class="title">躺平指南</text>
@@ -345,26 +345,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.container {
-  background-color: #f5f7fa;
-    
-    /* --- 修复点 Start --- */
-    
-    /* ❌ 删掉这行：min-height: 100%; */
-    /* ✅ 改为这行：强制高度等于屏幕高度 */
-    height: 100vh; 
-    
-    /* ✅ 关键：启用 Flex 布局，让内部的列表自动占满剩余空间 */
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* 防止容器本身溢出 */
-  
-    /* --- 颜值优化保留 --- */
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-    box-shadow: 0 0 20px rgba(0,0,0,0.05);
-    /* --- 修复点 End --- */
+.page {
+  height: 100vh;
+  width: 100%;
+  background-color: #f6f6f3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .list-container {
   padding: 12px;

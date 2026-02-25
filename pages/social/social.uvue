@@ -50,6 +50,10 @@
 
       <view style="height: 18px;"></view>
     </scroll-view>
+
+    <view class="publish-fab" @click="goPublish">
+      <text class="publish-fab-text">+</text>
+    </view>
   </view>
 </template>
 
@@ -74,6 +78,8 @@ interface CompanionItem {
 }
 
 const API_BASE_URL = 'http://localhost:3000'
+const SOCIAL_REFRESH_KEY = 'social_need_refresh'
+const TOKEN_KEY = 'token'
 
 const loading = ref(true)
 const companionList = ref<CompanionItem[]>([])
@@ -165,7 +171,20 @@ async function fetchCompanions(): Promise<CompanionItem[]> {
   })
 }
 
-onLoad(async () => {
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+function goPublish() {
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再发布', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/publish' })
+}
+
+async function loadCompanions() {
   loading.value = true
   try {
     companionList.value = await fetchCompanions()
@@ -175,6 +194,18 @@ onLoad(async () => {
     uni.showToast({ title: '加载搭子动态失败', icon: 'none' })
   } finally {
     loading.value = false
+  }
+}
+
+onLoad(async () => {
+  await loadCompanions()
+})
+
+onShow(() => {
+  const needRefresh = String(uni.getStorageSync(SOCIAL_REFRESH_KEY) || '').trim()
+  if (needRefresh == '1') {
+    uni.removeStorageSync(SOCIAL_REFRESH_KEY)
+    loadCompanions()
   }
 })
 </script>
@@ -222,6 +253,26 @@ onLoad(async () => {
 .feed {
   height: calc(100vh - 146px);
   padding: 12px 14px 0;
+}
+
+.publish-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  align-items: center;
+  justify-content: center;
+  background-color: #16a34a;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.38);
+}
+
+.publish-fab-text {
+  font-size: 34px;
+  line-height: 34px;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .state-wrap {

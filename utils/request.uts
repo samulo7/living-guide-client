@@ -1,6 +1,7 @@
 const API_BASE_URL = 'http://localhost:3000'
 const TOKEN_KEY = 'token'
 const LEGACY_LOGIN_KEY = 'isLogged'
+const USER_INFO_KEY = 'userInfo'
 
 let requestInterceptorInstalled = false
 let redirectingToLogin = false
@@ -53,6 +54,7 @@ function withAuthHeader(rawHeader: UTSJSONObject | null): UTSJSONObject {
 function redirectToLoginIfNeeded() {
   uni.removeStorageSync(TOKEN_KEY)
   uni.removeStorageSync(LEGACY_LOGIN_KEY)
+  uni.removeStorageSync(USER_INFO_KEY)
 
   if (redirectingToLogin) {
     return

@@ -277,6 +277,20 @@ async function ensureFavoritesTable() {
 }
 
 async function seedFavorites() {
+  const [userRows] = await pool.query(`
+    SELECT id
+    FROM users
+    ORDER BY id ASC
+    LIMIT 1
+  `)
+  if (!Array.isArray(userRows) || userRows.length == 0) {
+    return
+  }
+  const userId = Number(userRows[0]?.id || 0)
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return
+  }
+
   const [houseRows] = await pool.query(`
     SELECT id
     FROM houses
@@ -297,12 +311,12 @@ async function seedFavorites() {
     await pool.query(
       `
         INSERT INTO favorites (user_id, house_id, created_at)
-        SELECT 1, ?, DATE_SUB(NOW(), INTERVAL ? DAY)
+        SELECT ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY)
         WHERE NOT EXISTS (
-          SELECT 1 FROM favorites WHERE user_id = 1 AND house_id = ?
+          SELECT 1 FROM favorites WHERE user_id = ? AND house_id = ?
         )
       `,
-      [houseId, i, houseId]
+      [userId, houseId, i, userId, houseId]
     )
   }
 }

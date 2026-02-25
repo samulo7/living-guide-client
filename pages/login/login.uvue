@@ -2,7 +2,7 @@
   <view class="page">
     <view class="center-wrap">
       <view class="brand-block">
-        <text class="brand-logo">🏡</text>
+        <text class="brand-logo">LG</text>
         <text class="brand-title">躺平指南</text>
         <text class="brand-subtitle">找到你的数字避风港</text>
       </view>
@@ -30,10 +30,13 @@ import { request } from '../../utils/request'
 interface LoginResponse {
   success: boolean
   token?: string
+  user?: Record<string, unknown>
   message?: string
 }
 
-const LOGIN_SUCCESS_EVENT = 'auth-login-success'
+const TOKEN_KEY = 'token'
+const USER_INFO_KEY = 'userInfo'
+
 const phone = ref('')
 const loading = ref(false)
 
@@ -77,14 +80,17 @@ async function onWechatLogin() {
       return
     }
 
-    uni.setStorageSync('token', String(data.token))
-    uni.setStorageSync('isLogged', true)
-    uni.$emit(LOGIN_SUCCESS_EVENT)
-    uni.showToast({ title: '登录成功', icon: 'none' })
+    // 清掉旧账号缓存，避免串号和脏数据
+    uni.clearStorageSync()
+    uni.setStorageSync(TOKEN_KEY, String(data.token))
+    if (data.user != null && typeof data.user == 'object') {
+      uni.setStorageSync(USER_INFO_KEY, data.user)
+    }
 
-    setTimeout(() => {
-      uni.navigateBack()
-    }, 400)
+    // 登录成功后强制重建用户页，触发 onLoad 重新拉取数据
+    uni.reLaunch({
+      url: '/pages/user/user'
+    })
   } catch (error) {
     uni.showToast({ title: parseLoginError(error), icon: 'none' })
   } finally {
@@ -114,8 +120,10 @@ async function onWechatLogin() {
 }
 
 .brand-logo {
-  font-size: 50px;
-  line-height: 58px;
+  font-size: 32px;
+  line-height: 38px;
+  color: #16a34a;
+  font-weight: 900;
 }
 
 .brand-title {

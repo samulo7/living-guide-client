@@ -4,19 +4,6 @@ const authMiddleware = require('../middleware/authMiddleware')
 
 const router = express.Router()
 
-function mapProfileRow(row) {
-  const nickname = String(row.nickname || row.username || '数字游民').trim()
-  const bio = String(row.bio || row.tagline || '今天也在低成本生活').trim()
-  const avatar = String(row.avatar || '').trim()
-
-  return {
-    id: Number(row.id || 0),
-    nickname: nickname != '' ? nickname : '数字游民',
-    bio: bio != '' ? bio : '今天也在低成本生活',
-    avatar
-  }
-}
-
 function readAuthedUserId(req) {
   const userId = Number(req.user?.id || 0)
   if (!Number.isInteger(userId) || userId <= 0) {
@@ -25,20 +12,33 @@ function readAuthedUserId(req) {
   return userId
 }
 
+function unauthorized(res) {
+  res.status(401).json({
+    ok: false,
+    message: 'Unauthorized'
+  })
+}
+
+function mapProfileRow(row) {
+  return {
+    id: Number(row?.id || 0),
+    username: String(row?.username || row?.nickname || '').trim() || 'Nomad',
+    tagline: String(row?.tagline || row?.bio || '').trim(),
+    avatar: String(row?.avatar || '').trim()
+  }
+}
+
 router.get('/profile', authMiddleware, async (req, res) => {
   const userId = readAuthedUserId(req)
   if (userId <= 0) {
-    res.status(401).json({
-      ok: false,
-      message: 'Unauthorized'
-    })
+    unauthorized(res)
     return
   }
 
   try {
     const [rows] = await pool.query(
       `
-        SELECT *
+        SELECT id, username, nickname, tagline, bio, avatar
         FROM users
         WHERE id = ?
         LIMIT 1
@@ -46,7 +46,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
       [userId]
     )
 
-    if (!rows || rows.length === 0) {
+    if (!Array.isArray(rows) || rows.length === 0) {
       res.status(404).json({
         ok: false,
         message: 'User profile not found'
@@ -70,10 +70,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 router.get('/favorites', authMiddleware, async (req, res) => {
   const userId = readAuthedUserId(req)
   if (userId <= 0) {
-    res.status(401).json({
-      ok: false,
-      message: 'Unauthorized'
-    })
+    unauthorized(res)
     return
   }
 
@@ -81,20 +78,20 @@ router.get('/favorites', authMiddleware, async (req, res) => {
     const [rows] = await pool.query(
       `
         SELECT
-          h.id,
-          h.city_id,
-          c.name AS city_name,
-          h.title,
-          h.cover_image,
-          h.price,
-          h.district,
-          h.tags,
-          h.created_at
-        FROM favorites f
-        INNER JOIN houses h ON f.house_id = h.id
-        LEFT JOIN cities c ON h.city_id = c.id
-        WHERE f.user_id = ?
-        ORDER BY f.created_at DESC, h.id DESC
+          houses.id,
+          houses.city_id,
+          cities.name AS city_name,
+          houses.title,
+          houses.cover_image,
+          houses.price,
+          houses.district,
+          houses.tags,
+          favorites.created_at
+        FROM favorites
+        INNER JOIN houses ON favorites.house_id = houses.id
+        LEFT JOIN cities ON houses.city_id = cities.id
+        WHERE favorites.user_id = ?
+        ORDER BY favorites.created_at DESC, houses.id DESC
       `,
       [userId]
     )
@@ -108,6 +105,78 @@ router.get('/favorites', authMiddleware, async (req, res) => {
     res.status(500).json({
       ok: false,
       message: 'Failed to fetch favorite houses'
+    })
+  }
+})
+
+router.post('/favorite', authMiddleware, async (req, res) => {
+  const userId = readAuthedUserId(req)
+  if (userId <= 0) {
+    unauthorized(res)
+    return
+  }
+
+  const houseId = Number.parseInt(String(req.body?.house_id || ''), 10)
+  if (!Number.isInteger(houseId) || houseId <= 0) {
+    res.status(400).json({
+      ok: false,
+      message: 'Invalid house_id'
+    })
+    return
+  }
+
+  try {
+    const [houseRows] = await pool.query(
+      `
+        SELECT id
+        FROM houses
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [houseId]
+    )
+
+    if (!Array.isArray(houseRows) || houseRows.length === 0) {
+      res.status(404).json({
+        ok: false,
+        message: 'House not found'
+      })
+      return
+    }
+
+    await pool.query(
+      `
+        INSERT INTO favorites (user_id, house_id)
+        VALUES (?, ?)
+      `,
+      [userId, houseId]
+    )
+
+    res.status(201).json({
+      ok: true,
+      message: 'Favorite saved',
+      data: {
+        user_id: userId,
+        house_id: houseId
+      }
+    })
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      res.json({
+        ok: true,
+        message: 'Already favorited',
+        data: {
+          user_id: userId,
+          house_id: houseId
+        }
+      })
+      return
+    }
+
+    console.error('[POST /api/user/favorite] failed:', error.message)
+    res.status(500).json({
+      ok: false,
+      message: 'Failed to save favorite'
     })
   }
 })

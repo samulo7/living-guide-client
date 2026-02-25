@@ -2,36 +2,36 @@
   <view class="page">
     <scroll-view class="content" direction="vertical">
       <view class="hero">
-        <view class="profile-card" :class="{ 'profile-card-guest': userInfo == null }" @click="onProfileCardClick">
-          <image v-if="userInfo != null && userInfo.avatar != ''" class="avatar" :src="userInfo.avatar" mode="aspectFill"></image>
+        <view class="profile-card" :class="{ 'profile-card-guest': !isLogged }" @click="onProfileCardClick">
+          <image v-if="userInfo?.avatar" class="avatar" :src="userInfo.avatar" mode="aspectFill"></image>
           <view v-else class="avatar-fallback">
-            <text class="avatar-fallback-icon">👤</text>
+            <text class="avatar-fallback-icon">U</text>
           </view>
 
           <view class="profile-main">
-            <text class="nickname">{{ userInfo != null ? userInfo.nickname : '点击登录' }}</text>
-            <text v-if="userInfo != null && userInfo.bio != ''" class="bio">{{ userInfo.bio }}</text>
+            <text class="nickname">{{ isLogged ? (userInfo?.username || '加载中...') : '点击登录' }}</text>
+            <text v-if="(userInfo?.tagline || '') != ''" class="bio">{{ userInfo?.tagline }}</text>
           </view>
         </view>
       </view>
 
       <view v-if="!isLogged" class="guest-placeholder-wrap">
-        <text class="guest-placeholder-text">登录后查看我的游民资产</text>
+        <text class="guest-placeholder-text">登录后查看我的收藏</text>
       </view>
 
       <view v-else>
         <view class="stats-panel">
           <view class="stat-item">
             <text class="stat-label">我的发布</text>
-            <text class="stat-value">2</text>
+            <text class="stat-value">{{ stats.published }}</text>
           </view>
           <view class="stat-item">
             <text class="stat-label">我的收藏</text>
-            <text class="stat-value">{{ favoriteList.length }}</text>
+            <text class="stat-value">{{ stats.favorites }}</text>
           </view>
           <view class="stat-item">
             <text class="stat-label">浏览记录</text>
-            <text class="stat-value">18</text>
+            <text class="stat-value">{{ stats.history }}</text>
           </view>
         </view>
 
@@ -44,16 +44,11 @@
         </view>
 
         <view v-else-if="favoriteList.length == 0" class="state-wrap">
-          <text class="state-text">你还没有收藏房源，去安家大厅逛逛吧</text>
+          <text class="state-text">你还没有收藏房源，去安家大厅看看</text>
         </view>
 
         <view v-else class="card-list">
-          <view
-            class="house-card"
-            v-for="room in favoriteList"
-            :key="room.id"
-            @click="goDetail(room.id)"
-          >
+          <view class="house-card" v-for="room in favoriteList" :key="room.id" @click="goDetail(room.id)">
             <view class="card-image-wrap">
               <image class="card-image" :src="coverUrl(room.cover_image)" mode="aspectFill"></image>
               <text class="green-badge">收藏优选</text>
@@ -64,11 +59,7 @@
               <text class="card-title">{{ room.title }}</text>
               <text class="card-location">📍 {{ room.city_name }} · {{ room.district }}</text>
               <view class="tag-row" v-if="splitTags(room.tags).length > 0">
-                <text
-                  class="tag-chip"
-                  v-for="(tag, index) in splitTags(room.tags).slice(0, 3)"
-                  :key="room.id + '-' + index"
-                >
+                <text class="tag-chip" v-for="(tag, index) in splitTags(room.tags).slice(0, 3)" :key="room.id + '-' + index">
                   {{ tag }}
                 </text>
               </view>
@@ -88,6 +79,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { request } from '../../utils/request'
 
 interface ProfileResponse {
   ok: boolean
@@ -102,8 +94,8 @@ interface FavoriteResponse {
 }
 
 interface ProfileInfo {
-  nickname: string
-  bio: string
+  username: string
+  tagline: string
   avatar: string
 }
 
@@ -118,34 +110,18 @@ interface HouseItem {
   tags: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
-const LOGIN_FLAG_KEY = 'isLogged'
 const TOKEN_KEY = 'token'
-const LOGIN_SUCCESS_EVENT = 'auth-login-success'
+const USER_INFO_KEY = 'userInfo'
 
 const isLogged = ref(false)
 const userInfo = ref<ProfileInfo | null>(null)
 const favoriteList = ref<HouseItem[]>([])
 const loadingFavorites = ref(true)
-let hasLoaded = false
-
-function parseApiPayload<T>(raw: unknown): T | null {
-  if (raw != null && typeof raw == 'object') {
-    return raw as T
-  }
-  if (typeof raw == 'string') {
-    const text = raw.trim()
-    if (text == '') {
-      return null
-    }
-    try {
-      return JSON.parse<T>(text)
-    } catch (error) {
-      return null
-    }
-  }
-  return null
-}
+const stats = ref({
+  published: 0,
+  favorites: 0,
+  history: 0
+})
 
 function splitTags(rawTags: string): string[] {
   const text = String(rawTags || '').trim()
@@ -153,7 +129,7 @@ function splitTags(rawTags: string): string[] {
     return []
   }
   return text
-    .split(/[、,，;；|/]+/)
+    .split(/[、,，|]/)
     .map((item) => item.trim())
     .filter((item) => item != '')
 }
@@ -186,62 +162,70 @@ function mapHouseRow(row: Record<string, unknown>): HouseItem {
   }
 }
 
-function applyProfile(row: Record<string, unknown>) {
-  const nickname = String(row.nickname ?? '').trim()
-  const bio = String(row.bio ?? '').trim()
+function mapUserInfo(row: Record<string, unknown>): ProfileInfo {
+  const username = String(row.username ?? '').trim()
+  const tagline = String(row.tagline ?? '').trim()
   const avatar = String(row.avatar ?? '').trim()
 
-  userInfo.value = {
-    nickname: nickname != '' ? nickname : '数字游民',
-    bio: bio != '' ? bio : '今天也在低成本生活',
+  return {
+    username: username != '' ? username : '数字游民',
+    tagline: tagline != '' ? tagline : '今天也在低成本生活',
     avatar
   }
 }
 
-async function fetchProfile() {
-  return new Promise<void>((resolve, reject) => {
-    uni.request({
-      url: API_BASE_URL + '/api/user/profile',
-      method: 'GET',
-      success: (res) => {
-        if (res.statusCode != 200) {
-          reject('request failed: ' + res.statusCode)
-          return
-        }
-        const payload = parseApiPayload<ProfileResponse>(res.data)
-        if (payload == null || payload.ok != true || payload.data == null) {
-          reject(payload?.message ?? 'profile is empty')
-          return
-        }
-        applyProfile(payload.data)
-        resolve()
-      },
-      fail: (error) => reject(error)
-    })
+function saveUserInfo(next: ProfileInfo | null) {
+  if (next == null) {
+    uni.removeStorageSync(USER_INFO_KEY)
+    return
+  }
+  uni.setStorageSync(USER_INFO_KEY, {
+    username: next.username,
+    tagline: next.tagline,
+    avatar: next.avatar
   })
 }
 
-async function fetchFavorites() {
-  return new Promise<void>((resolve, reject) => {
-    uni.request({
-      url: API_BASE_URL + '/api/user/favorites',
-      method: 'GET',
-      success: (res) => {
-        if (res.statusCode != 200) {
-          reject('request failed: ' + res.statusCode)
-          return
-        }
-        const payload = parseApiPayload<FavoriteResponse>(res.data)
-        if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
-          reject(payload?.message ?? 'favorites is empty')
-          return
-        }
-        favoriteList.value = payload.data.map((item) => mapHouseRow(item))
-        resolve()
-      },
-      fail: (error) => reject(error)
-    })
+function readUserInfo(): ProfileInfo | null {
+  const raw = uni.getStorageSync(USER_INFO_KEY)
+  if (raw == null || typeof raw != 'object') {
+    return null
+  }
+  return mapUserInfo(raw as Record<string, unknown>)
+}
+
+function applyProfile(row: Record<string, unknown>) {
+  const mapped = mapUserInfo(row)
+  userInfo.value = mapped
+  saveUserInfo(mapped)
+}
+
+function hasToken(): boolean {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  return token != ''
+}
+
+async function fetchProfile() {
+  const payload = await request<ProfileResponse>({
+    url: '/api/user/profile',
+    method: 'GET'
   })
+  if (payload.ok !== true || payload.data == null) {
+    throw new Error(payload.message || 'profile is empty')
+  }
+  applyProfile(payload.data)
+}
+
+async function fetchFavorites() {
+  const payload = await request<FavoriteResponse>({
+    url: '/api/user/favorites',
+    method: 'GET'
+  })
+  if (payload.ok !== true || !Array.isArray(payload.data)) {
+    throw new Error(payload.message || 'favorites is empty')
+  }
+  favoriteList.value = payload.data.map((item) => mapHouseRow(item))
+  stats.value.favorites = favoriteList.value.length
 }
 
 function goDetail(id: string) {
@@ -258,12 +242,16 @@ function onLogout() {
       if (!res.confirm) {
         return
       }
-      uni.removeStorageSync(TOKEN_KEY)
-      uni.removeStorageSync(LOGIN_FLAG_KEY)
+      uni.clearStorageSync()
       isLogged.value = false
       userInfo.value = null
       favoriteList.value = []
       loadingFavorites.value = false
+      stats.value = {
+        published: 0,
+        favorites: 0,
+        history: 0
+      }
       uni.showToast({ title: '已退出', icon: 'none' })
     }
   })
@@ -276,29 +264,19 @@ function onProfileCardClick() {
   uni.navigateTo({ url: '/pages/login/login' })
 }
 
-function getIsLogged(): boolean {
-  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
-  if (token != '') {
-    return true
-  }
-
-  const value = uni.getStorageSync(LOGIN_FLAG_KEY)
-  if (value === true || value === 1) {
-    return true
-  }
-  if (typeof value == 'string') {
-    const text = value.trim().toLowerCase()
-    return text == 'true' || text == '1'
-  }
-  return false
-}
-
 async function refreshUserCenter() {
-  isLogged.value = getIsLogged()
+  isLogged.value = hasToken()
+  userInfo.value = readUserInfo()
+
   if (!isLogged.value) {
     userInfo.value = null
     favoriteList.value = []
     loadingFavorites.value = false
+    stats.value = {
+      published: 0,
+      favorites: 0,
+      history: 0
+    }
     return
   }
 
@@ -307,23 +285,28 @@ async function refreshUserCenter() {
     await Promise.all([fetchProfile(), fetchFavorites()])
   } catch (error) {
     console.error('[user] load data failed:', error)
-    userInfo.value = null
-    uni.showToast({ title: '加载我的页面失败', icon: 'none' })
+    if (userInfo.value == null) {
+      uni.showToast({ title: '加载失败，请稍后重试', icon: 'none' })
+    }
   } finally {
     loadingFavorites.value = false
   }
 }
 
 onLoad(async () => {
-  await refreshUserCenter()
-  hasLoaded = true
-
-  uni.$on(LOGIN_SUCCESS_EVENT, () => {
-    if (!hasLoaded) {
-      return
+  if (!hasToken()) {
+    isLogged.value = false
+    userInfo.value = null
+    favoriteList.value = []
+    loadingFavorites.value = false
+    stats.value = {
+      published: 0,
+      favorites: 0,
+      history: 0
     }
-    refreshUserCenter()
-  })
+    return
+  }
+  await refreshUserCenter()
 })
 </script>
 
@@ -373,8 +356,9 @@ onLoad(async () => {
 }
 
 .avatar-fallback-icon {
-  font-size: 28px;
+  font-size: 26px;
   color: #6b7280;
+  font-weight: 700;
 }
 
 .profile-main {

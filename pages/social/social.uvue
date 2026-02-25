@@ -78,7 +78,7 @@ interface CompanionItem {
 }
 
 const API_BASE_URL = 'http://localhost:3000'
-const SOCIAL_REFRESH_KEY = 'social_need_refresh'
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
 const TOKEN_KEY = 'token'
 
 const loading = ref(true)
@@ -184,7 +184,7 @@ function goPublish() {
   uni.navigateTo({ url: '/pages/social/publish' })
 }
 
-async function loadCompanions() {
+async function fetchData() {
   loading.value = true
   try {
     companionList.value = await fetchCompanions()
@@ -197,16 +197,18 @@ async function loadCompanions() {
   }
 }
 
+function onRefreshSocialList() {
+  fetchData()
+}
+
 onLoad(async () => {
-  await loadCompanions()
+  uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  uni.$on(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  await fetchData()
 })
 
-onShow(() => {
-  const needRefresh = String(uni.getStorageSync(SOCIAL_REFRESH_KEY) || '').trim()
-  if (needRefresh == '1') {
-    uni.removeStorageSync(SOCIAL_REFRESH_KEY)
-    loadCompanions()
-  }
+onUnload(() => {
+  uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
 })
 </script>
 

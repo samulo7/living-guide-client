@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
       tags,
       created_at
     FROM companions
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, id DESC
   `
 
   try {

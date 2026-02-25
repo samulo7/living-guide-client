@@ -19,13 +19,18 @@
         placeholder="写清楚时间、地点、你希望的搭子类型"
       />
 
-      <text class="label">标签（用逗号分隔）</text>
-      <input
-        class="input"
-        v-model="formTags"
-        maxlength="120"
-        placeholder="例如：看房,探店,周末"
-      />
+      <text class="label">标签（可多选）</text>
+      <view class="tag-selector">
+        <view
+          v-for="tag in TAG_OPTIONS"
+          :key="tag"
+          class="tag-option"
+          :class="{ 'tag-option-active': isTagSelected(tag) }"
+          @click="toggleTag(tag)"
+        >
+          <text class="tag-option-text">{{ tag }}</text>
+        </view>
+      </view>
 
       <view class="submit-btn" @click="onSubmit">
         <text class="submit-btn-text">{{ submitting ? '发布中...' : '立即发布' }}</text>
@@ -35,33 +40,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { request } from '../../utils/request'
 
 interface PublishResponse {
-  ok: boolean
+  success?: boolean
+  id?: number
   message?: string
 }
 
-const SOCIAL_REFRESH_KEY = 'social_need_refresh'
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const TAG_OPTIONS: string[] = [
+  '看房',
+  '探店',
+  '饭搭子',
+  '周末活动',
+  '运动',
+  '学习',
+  '散步',
+  '拼车'
+]
 
 const formTitle = ref('')
 const formContent = ref('')
-const formTags = ref('')
+const selectedTags = ref<string[]>([])
 const submitting = ref(false)
 
-function parseTags(text: string): string[] {
-  return String(text || '')
-    .split(/[,\uff0c\u3001|]/)
-    .map((item) => item.trim())
-    .filter((item) => item != '')
-    .slice(0, 8)
+const normalizedTags = computed((): string[] => {
+  return selectedTags.value.slice(0, 8)
+})
+
+function isTagSelected(tag: string): boolean {
+  return selectedTags.value.includes(tag)
+}
+
+function toggleTag(tag: string) {
+  if (submitting.value) {
+    return
+  }
+  const index = selectedTags.value.findIndex((item) => item == tag)
+  if (index >= 0) {
+    selectedTags.value.splice(index, 1)
+    return
+  }
+  if (selectedTags.value.length >= 8) {
+    uni.showToast({ title: '最多选择 8 个标签', icon: 'none' })
+    return
+  }
+  selectedTags.value.push(tag)
 }
 
 async function onSubmit() {
   const title = formTitle.value.trim()
   const content = formContent.value.trim()
-  const tags = parseTags(formTags.value)
+  const tags = normalizedTags.value
 
   if (title.length < 2) {
     uni.showToast({ title: '标题至少 2 个字', icon: 'none' })
@@ -69,6 +101,10 @@ async function onSubmit() {
   }
   if (content.length < 2) {
     uni.showToast({ title: '内容至少 2 个字', icon: 'none' })
+    return
+  }
+  if (tags.length == 0) {
+    uni.showToast({ title: '请至少选择 1 个标签', icon: 'none' })
     return
   }
 
@@ -88,16 +124,16 @@ async function onSubmit() {
       }
     })
 
-    if (res.ok !== true) {
+    if (res.success !== true) {
       uni.showToast({ title: res.message || '发布失败', icon: 'none' })
       return
     }
 
-    uni.setStorageSync(SOCIAL_REFRESH_KEY, '1')
     uni.showToast({ title: '发布成功', icon: 'none' })
+    uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
     setTimeout(() => {
       uni.navigateBack()
-    }, 220)
+    }, 1500)
   } catch (error) {
     console.error('[social-publish] failed:', error)
     uni.showToast({ title: '发布失败，请稍后重试', icon: 'none' })
@@ -152,6 +188,35 @@ async function onSubmit() {
   padding: 10px 12px;
   font-size: 14px;
   color: #0f172a;
+}
+
+.tag-selector {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-option {
+  margin-right: 8px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  padding: 6px 12px;
+}
+
+.tag-option-active {
+  border-color: #16a34a;
+  background-color: #ecfdf3;
+}
+
+.tag-option-text {
+  font-size: 12px;
+  color: #334155;
+}
+
+.tag-option-active .tag-option-text {
+  color: #166534;
+  font-weight: 700;
 }
 
 .submit-btn {

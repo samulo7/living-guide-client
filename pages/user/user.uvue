@@ -48,10 +48,13 @@
         </view>
 
         <view v-else class="card-list">
-          <view class="house-card" v-for="room in favoriteList" :key="room.id" @click="goDetail(room.id)">
+          <view class="house-card" v-for="(room, index) in favoriteList" :key="room.id" @click="goDetail(room.id)">
             <view class="card-image-wrap">
               <image class="card-image" :src="coverUrl(room.cover_image)" mode="aspectFill"></image>
-              <text class="green-badge">收藏优选</text>
+              <text class="green-badge">已收藏</text>
+              <view class="remove-favorite-btn" @click.stop="onRemoveFavorite(room.id, index)">
+                <text class="remove-favorite-text">×</text>
+              </view>
               <text class="price-badge">¥{{ priceText(room.price) }}/月</text>
             </view>
 
@@ -87,9 +90,15 @@ interface ProfileResponse {
   message?: string
 }
 
-interface FavoriteResponse {
+interface FavoriteListResponse {
   ok: boolean
   data?: Record<string, unknown>[]
+  message?: string
+}
+
+interface FavoriteToggleResponse {
+  ok: boolean
+  data?: Record<string, unknown>
   message?: string
 }
 
@@ -112,6 +121,7 @@ interface HouseItem {
 
 const TOKEN_KEY = 'token'
 const USER_INFO_KEY = 'userInfo'
+const REFRESH_FAVORITES_EVENT = 'REFRESH_FAVORITES'
 
 const isLogged = ref(false)
 const userInfo = ref<ProfileInfo | null>(null)
@@ -205,6 +215,26 @@ function hasToken(): boolean {
   return token != ''
 }
 
+function resetGuestState() {
+  isLogged.value = false
+  userInfo.value = null
+  favoriteList.value = []
+  loadingFavorites.value = false
+  stats.value = {
+    published: 0,
+    favorites: 0,
+    history: 0
+  }
+}
+
+function updateFavoriteCount() {
+  stats.value.favorites = favoriteList.value.length
+}
+
+function asBool(value: unknown): boolean {
+  return value === true || value === 1 || value === '1'
+}
+
 async function fetchProfile() {
   const payload = await request<ProfileResponse>({
     url: '/api/user/profile',
@@ -217,7 +247,7 @@ async function fetchProfile() {
 }
 
 async function fetchFavorites() {
-  const payload = await request<FavoriteResponse>({
+  const payload = await request<FavoriteListResponse>({
     url: '/api/user/favorites',
     method: 'GET'
   })
@@ -225,11 +255,55 @@ async function fetchFavorites() {
     throw new Error(payload.message || 'favorites is empty')
   }
   favoriteList.value = payload.data.map((item) => mapHouseRow(item))
-  stats.value.favorites = favoriteList.value.length
+  updateFavoriteCount()
 }
 
 function goDetail(id: string) {
   uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
+}
+
+async function onRemoveFavorite(houseId: string, index: number) {
+  const id = String(houseId || '').trim()
+  if (id == '') {
+    return
+  }
+
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+
+  try {
+    const payload = await request<FavoriteToggleResponse>({
+      url: '/api/user/favorite/toggle',
+      method: 'POST',
+      data: {
+        house_id: Number.parseInt(id, 10)
+      }
+    })
+    if (payload.ok !== true) {
+      uni.showToast({ title: payload.message || '取消收藏失败', icon: 'none' })
+      return
+    }
+
+    const nextIsFavorited = asBool(payload.data?.isFavorited)
+    if (nextIsFavorited) {
+      uni.showToast({ title: '取消收藏失败', icon: 'none' })
+      return
+    }
+
+    if (index >= 0 && index < favoriteList.value.length && favoriteList.value[index]?.id == id) {
+      favoriteList.value.splice(index, 1)
+    } else {
+      favoriteList.value = favoriteList.value.filter((item) => item.id != id)
+    }
+    updateFavoriteCount()
+    uni.$emit(REFRESH_FAVORITES_EVENT)
+    uni.showToast({ title: '已取消收藏', icon: 'none' })
+  } catch (error) {
+    console.error('[user] remove favorite failed:', error)
+    uni.showToast({ title: '取消收藏失败，请稍后重试', icon: 'none' })
+  }
 }
 
 function onLogout() {
@@ -243,15 +317,7 @@ function onLogout() {
         return
       }
       uni.clearStorageSync()
-      isLogged.value = false
-      userInfo.value = null
-      favoriteList.value = []
-      loadingFavorites.value = false
-      stats.value = {
-        published: 0,
-        favorites: 0,
-        history: 0
-      }
+      resetGuestState()
       uni.showToast({ title: '已退出', icon: 'none' })
     }
   })
@@ -269,14 +335,7 @@ async function refreshUserCenter() {
   userInfo.value = readUserInfo()
 
   if (!isLogged.value) {
-    userInfo.value = null
-    favoriteList.value = []
-    loadingFavorites.value = false
-    stats.value = {
-      published: 0,
-      favorites: 0,
-      history: 0
-    }
+    resetGuestState()
     return
   }
 
@@ -293,20 +352,38 @@ async function refreshUserCenter() {
   }
 }
 
-onLoad(async () => {
+async function onRefreshFavorites() {
   if (!hasToken()) {
-    isLogged.value = false
-    userInfo.value = null
-    favoriteList.value = []
-    loadingFavorites.value = false
-    stats.value = {
-      published: 0,
-      favorites: 0,
-      history: 0
-    }
+    return
+  }
+  try {
+    await fetchFavorites()
+  } catch (error) {
+    console.error('[user] refresh favorites failed:', error)
+  }
+}
+
+onLoad(async () => {
+  uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$on(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+
+  if (!hasToken()) {
+    resetGuestState()
     return
   }
   await refreshUserCenter()
+})
+
+onShow(() => {
+  if (!hasToken()) {
+    resetGuestState()
+    return
+  }
+  onRefreshFavorites()
+})
+
+onUnload(() => {
+  uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
 })
 </script>
 
@@ -457,11 +534,30 @@ onLoad(async () => {
   left: 10px;
   top: 10px;
   font-size: 11px;
-  color: #ffffff;
+  color: #fff1f2;
   font-weight: 700;
   border-radius: 999px;
-  background-color: rgba(34, 197, 94, 0.92);
+  background-color: rgba(239, 68, 68, 0.92);
   padding: 5px 10px;
+}
+
+.remove-favorite-btn {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(17, 24, 39, 0.52);
+}
+
+.remove-favorite-text {
+  font-size: 16px;
+  line-height: 16px;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .price-badge {

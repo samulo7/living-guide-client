@@ -106,6 +106,7 @@ interface FavoriteListResponse {
 
 interface FavoriteResponse {
   ok: boolean
+  data?: Record<string, unknown>
   message?: string
 }
 
@@ -268,14 +269,9 @@ async function onFavorite(houseId: string) {
     return
   }
 
-  if (isFavorited(id)) {
-    uni.showToast({ title: '已在心愿单中', icon: 'none' })
-    return
-  }
-
   try {
     const res = await request<FavoriteResponse>({
-      url: '/api/user/favorite',
+      url: '/api/user/favorite/toggle',
       method: 'POST',
       data: {
         house_id: Number.parseInt(id, 10)
@@ -286,13 +282,26 @@ async function onFavorite(houseId: string) {
       return
     }
 
-    favoriteMap.value = {
-      ...favoriteMap.value,
-      [id]: true
+    const nextIsFavorited =
+      res.data?.isFavorited === true ||
+      res.data?.isFavorited === 1 ||
+      res.data?.isFavorited === '1'
+
+    if (nextIsFavorited) {
+      favoriteMap.value = {
+        ...favoriteMap.value,
+        [id]: true
+      }
+    } else {
+      const nextMap = { ...favoriteMap.value }
+      delete nextMap[id]
+      favoriteMap.value = nextMap
     }
-    uni.showToast({ title: '已存入心愿单', icon: 'none' })
+
+    uni.$emit('REFRESH_FAVORITES')
+    uni.showToast({ title: nextIsFavorited ? '已加入收藏' : '已取消收藏', icon: 'none' })
   } catch (error) {
-    console.error('[sublet-index] favorite failed:', error)
+    console.error('[sublet-index] favorite toggle failed:', error)
     uni.showToast({ title: '收藏失败，请稍后重试', icon: 'none' })
   }
 }

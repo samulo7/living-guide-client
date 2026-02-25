@@ -69,7 +69,7 @@
     </scroll-view>
 
     <view class="action-bar">
-      <view class="favorite-btn" @click="toggleFavorite">
+      <view class="favorite-btn" :class="{ 'favorite-btn-active': isFavorite }" @click="toggleFavorite">
         <text class="favorite-icon">{{ isFavorite ? '★' : '☆' }}</text>
         <text class="favorite-text">{{ isFavorite ? '已收藏' : '收藏' }}</text>
       </view>
@@ -82,8 +82,15 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { request } from '../../utils/request'
 
 interface HouseDetailResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface FavoriteToggleResponse {
   ok: boolean
   data?: Record<string, unknown>
   message?: string
@@ -104,29 +111,24 @@ interface HouseItem {
   layout: string
   area: string
   description: string
+  is_favorited: boolean
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const TOKEN_KEY = 'token'
 
 const emptyHouse: HouseItem = {
   id: '', city_id: '', city_name: '', title: '加载中...',
   cover_image: '', price: 0, district: '', community: '',
   min_duration: '', tags: '', created_at: '',
-  layout: '', area: '', description: ''
+  layout: '', area: '', description: '', is_favorited: false
 }
 
 const house = ref<HouseItem>(emptyHouse)
 const isFavorite = ref(false)
 const imgLoadError = ref(false)
 
-function parseApiPayload<T>(raw: unknown): T | null {
-  if (raw != null && typeof raw == 'object') return raw as T
-  if (typeof raw == 'string') {
-    const text = raw.trim()
-    if (text == '') return null
-    try { return JSON.parse<T>(text) } catch (error) { return null }
-  }
-  return null
+function asBool(value: unknown): boolean {
+  return value === true || value === 1 || value === '1'
 }
 
 function mapHouseRow(row: Record<string, unknown>): HouseItem {
@@ -144,24 +146,24 @@ function mapHouseRow(row: Record<string, unknown>): HouseItem {
     created_at: String(row.created_at ?? ''),
     layout: String(row.layout ?? ''),
     area: String(row.area ?? ''),
-    description: String(row.description ?? '')
+    description: String(row.description ?? ''),
+    is_favorited: asBool(row.is_favorited)
   }
 }
 
 async function fetchHouseDetail(id: string): Promise<HouseItem> {
-  return new Promise<HouseItem>((resolve, reject) => {
-    uni.request({
-      url: API_BASE_URL + '/api/houses/' + encodeURIComponent(id),
-      method: 'GET',
-      success: (res) => {
-        if (res.statusCode != 200) return reject('request failed: ' + res.statusCode)
-        const payload = parseApiPayload<HouseDetailResponse>(res.data)
-        if (payload == null || payload.ok != true || payload.data == null) return reject(payload?.message ?? 'house detail is empty')
-        resolve(mapHouseRow(payload.data))
-      },
-      fail: (error) => reject(error)
-    })
+  const payload = await request<HouseDetailResponse>({
+    url: '/api/houses/' + encodeURIComponent(id),
+    method: 'GET'
   })
+  if (payload.ok !== true || payload.data == null) {
+    throw new Error(payload.message || 'house detail is empty')
+  }
+  return mapHouseRow(payload.data)
+}
+
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
 }
 
 const coverUrl = computed((): string => {
@@ -184,9 +186,36 @@ const tagList = computed((): string[] => {
 const goBack = () => uni.navigateBack({})
 const onImageError = () => { imgLoadError.value = true }
 
-const toggleFavorite = () => {
-  isFavorite.value = !isFavorite.value
-  uni.showToast({ title: isFavorite.value ? '已加入收藏' : '已取消收藏', icon: 'none' })
+const toggleFavorite = async () => {
+  const id = String(house.value.id || '').trim()
+  if (id == '') return
+
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再收藏', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+
+  try {
+    const payload = await request<FavoriteToggleResponse>({
+      url: '/api/user/favorite/toggle',
+      method: 'POST',
+      data: {
+        house_id: Number.parseInt(id, 10)
+      }
+    })
+    if (payload.ok !== true) {
+      uni.showToast({ title: payload.message || '收藏失败', icon: 'none' })
+      return
+    }
+
+    isFavorite.value = asBool(payload.data?.isFavorited)
+    uni.$emit('REFRESH_FAVORITES')
+    uni.showToast({ title: isFavorite.value ? '已加入收藏' : '已取消收藏', icon: 'none' })
+  } catch (error) {
+    console.error('[house-detail] toggle favorite failed:', error)
+    uni.showToast({ title: '收藏失败，请稍后重试', icon: 'none' })
+  }
 }
 
 const contactOwner = () => {
@@ -200,7 +229,9 @@ onLoad(async (options) => {
     return
   }
   try {
-    house.value = await fetchHouseDetail(id)
+    const detail = await fetchHouseDetail(id)
+    house.value = detail
+    isFavorite.value = detail.is_favorited
     imgLoadError.value = false
   } catch (error) {
     console.error('[house-detail] load failed:', error)
@@ -270,8 +301,11 @@ onLoad(async (options) => {
 /* --- 底部悬浮操作栏 --- */
 .action-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 86px; background-color: rgba(255, 255, 255, 0.98); border-top: 1px solid #ebeef3; padding: 10px 16px 20px; flex-direction: row; align-items: center; }
 .favorite-btn { width: 94px; height: 46px; border-radius: 14px; background-color: #f8fafc; border: 1px solid #e5e7eb; justify-content: center; align-items: center; margin-right: 10px; }
+.favorite-btn-active { background-color: #fff3f2; border-color: #ff6b6b; }
 .favorite-icon { font-size: 16px; color: #f59e0b; }
+.favorite-btn-active .favorite-icon { color: #ff4d4f; }
 .favorite-text { margin-top: 2px; font-size: 11px; color: #475569; }
+.favorite-btn-active .favorite-text { color: #b42318; font-weight: 700; }
 .contact-btn { flex: 1; height: 46px; border-radius: 14px; justify-content: center; align-items: center; background-image: linear-gradient(135deg, #ff6a3d 0%, #ff3d57 100%); box-shadow: 0 10px 18px rgba(255, 77, 79, 0.28); }
 .contact-text { font-size: 15px; color: #ffffff; font-weight: 800; }
 </style>

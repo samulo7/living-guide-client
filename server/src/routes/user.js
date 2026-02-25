@@ -19,6 +19,62 @@ function unauthorized(res) {
   })
 }
 
+function parseHouseId(rawValue) {
+  const houseId = Number.parseInt(String(rawValue || ''), 10)
+  if (!Number.isInteger(houseId) || houseId <= 0) {
+    return 0
+  }
+  return houseId
+}
+
+async function ensureHouseExists(houseId) {
+  const [houseRows] = await pool.query(
+    `
+      SELECT id
+      FROM houses
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [houseId]
+  )
+
+  return Array.isArray(houseRows) && houseRows.length > 0
+}
+
+async function toggleFavoriteForUser(userId, houseId) {
+  const [existsRows] = await pool.query(
+    `
+      SELECT id
+      FROM favorites
+      WHERE user_id = ? AND house_id = ?
+      LIMIT 1
+    `,
+    [userId, houseId]
+  )
+
+  const alreadyFavorited = Array.isArray(existsRows) && existsRows.length > 0
+  if (alreadyFavorited) {
+    await pool.query(
+      `
+        DELETE FROM favorites
+        WHERE user_id = ? AND house_id = ?
+        LIMIT 1
+      `,
+      [userId, houseId]
+    )
+    return false
+  }
+
+  await pool.query(
+    `
+      INSERT INTO favorites (user_id, house_id)
+      VALUES (?, ?)
+    `,
+    [userId, houseId]
+  )
+  return true
+}
+
 function mapProfileRow(row) {
   return {
     id: Number(row?.id || 0),
@@ -109,15 +165,15 @@ router.get('/favorites', authMiddleware, async (req, res) => {
   }
 })
 
-router.post('/favorite', authMiddleware, async (req, res) => {
+router.post('/favorite/toggle', authMiddleware, async (req, res) => {
   const userId = readAuthedUserId(req)
   if (userId <= 0) {
     unauthorized(res)
     return
   }
 
-  const houseId = Number.parseInt(String(req.body?.house_id || ''), 10)
-  if (!Number.isInteger(houseId) || houseId <= 0) {
+  const houseId = parseHouseId(req.body?.house_id)
+  if (houseId <= 0) {
     res.status(400).json({
       ok: false,
       message: 'Invalid house_id'
@@ -126,17 +182,8 @@ router.post('/favorite', authMiddleware, async (req, res) => {
   }
 
   try {
-    const [houseRows] = await pool.query(
-      `
-        SELECT id
-        FROM houses
-        WHERE id = ?
-        LIMIT 1
-      `,
-      [houseId]
-    )
-
-    if (!Array.isArray(houseRows) || houseRows.length === 0) {
+    const houseExists = await ensureHouseExists(houseId)
+    if (!houseExists) {
       res.status(404).json({
         ok: false,
         message: 'House not found'
@@ -144,39 +191,21 @@ router.post('/favorite', authMiddleware, async (req, res) => {
       return
     }
 
-    await pool.query(
-      `
-        INSERT INTO favorites (user_id, house_id)
-        VALUES (?, ?)
-      `,
-      [userId, houseId]
-    )
-
-    res.status(201).json({
+    const isFavorited = await toggleFavoriteForUser(userId, houseId)
+    res.json({
       ok: true,
-      message: 'Favorite saved',
+      message: isFavorited ? 'Favorited' : 'Unfavorited',
       data: {
         user_id: userId,
-        house_id: houseId
+        house_id: houseId,
+        isFavorited
       }
     })
   } catch (error) {
-    if (error?.code === 'ER_DUP_ENTRY') {
-      res.json({
-        ok: true,
-        message: 'Already favorited',
-        data: {
-          user_id: userId,
-          house_id: houseId
-        }
-      })
-      return
-    }
-
-    console.error('[POST /api/user/favorite] failed:', error.message)
+    console.error('[POST /api/user/favorite/toggle] failed:', error.message)
     res.status(500).json({
       ok: false,
-      message: 'Failed to save favorite'
+      message: 'Failed to toggle favorite'
     })
   }
 })

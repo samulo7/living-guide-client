@@ -1,55 +1,102 @@
 <template>
   <view class="page">
     <view class="hero">
-      <text class="hero-title">搭子广场</text>
-      <text class="hero-subtitle">一个人躺平太无聊？找个同频搭子</text>
-      <view class="hero-tips">
-        <text class="hero-tip">同城组局</text>
-        <text class="hero-tip">社恐友好</text>
-        <text class="hero-tip">即时响应</text>
+      <view class="hero-row">
+        <view>
+          <text class="hero-title">搭子广场</text>
+          <text class="hero-subtitle">一个人躺平太无聊？找个同频搭子</text>
+        </view>
+        <view class="mode-toggle" @click="toggleViewMode">
+          <text class="mode-toggle-text">
+            {{ viewMode == 'list' ? '切换雷达' : '切换列表' }}
+          </text>
+        </view>
       </view>
     </view>
 
-    <scroll-view class="feed" direction="vertical">
-      <view v-if="loading" class="state-wrap">
-        <text class="state-text">正在加载搭子动态...</text>
+    <view class="mode-stage">
+      <view class="list-mode" :class="{ 'mode-active': viewMode == 'list', 'mode-hidden': viewMode != 'list' }">
+        <scroll-view class="list-scroll" direction="vertical">
+          <view v-if="loading" class="state-wrap">
+            <text class="state-text">正在连接附近游民...</text>
+          </view>
+
+          <view v-else-if="companions.length == 0" class="state-wrap">
+            <text class="state-text">暂时还没有搭子动态</text>
+          </view>
+
+          <view v-else class="feed-list">
+            <view class="feed-card" v-for="item in companions" :key="item.id">
+              <view class="feed-head">
+                <view class="avatar-wrap">
+                  <image v-if="item.avatar != ''" class="avatar-image" :src="item.avatar" mode="aspectFill"></image>
+                  <view v-else class="avatar-fallback">
+                    <text class="avatar-fallback-icon">👤</text>
+                  </view>
+                </view>
+
+                <view class="head-meta">
+                  <view class="meta-row">
+                    <text class="nickname">{{ item.nickname }}</text>
+                    <text class="city-chip">📍 {{ cityText(item.city_name) }}</text>
+                  </view>
+                  <text class="time-text">{{ item.created_at_text }}</text>
+                </view>
+              </view>
+
+              <text class="feed-title">{{ item.title }}</text>
+              <text class="feed-content">{{ item.content }}</text>
+
+              <view class="tag-row" v-if="item.tags.length > 0">
+                <text
+                  v-for="(tag, index) in item.tags"
+                  :key="item.id + '-' + index"
+                  :class="['tag-chip', 'tag-chip-' + String(index % 4)]"
+                >
+                  {{ tag }}
+                </text>
+              </view>
+            </view>
+          </view>
+          <view style="height: 24px;"></view>
+        </scroll-view>
       </view>
 
-      <view v-else-if="companionList.length == 0" class="state-wrap">
-        <text class="state-text">广场暂时还没有新帖子</text>
-      </view>
+      <view class="radar-mode" :class="{ 'mode-active': viewMode == 'radar', 'mode-hidden': viewMode != 'radar' }">
+        <view class="radar-container">
+          <view class="radar-center-layer">
+            <view
+              class="ripple"
+              v-for="index in 4"
+              :key="'ripple-' + String(index)"
+              :style="{ animationDelay: String((index - 1) * 0.8) + 's' }"
+            ></view>
+            <view class="scanner-line"></view>
 
-      <view v-else class="card-list">
-        <view class="post-card" v-for="post in companionList" :key="post.id">
-          <view class="post-head">
-            <image v-if="post.avatar != ''" class="avatar" :src="post.avatar" mode="aspectFill"></image>
-            <view v-else class="avatar-fallback">
-              <text class="avatar-fallback-icon">👤</text>
+            <view class="center-user">
+              <image class="center-user-avatar" src="/static/logo.png" mode="aspectFill"></image>
             </view>
 
-            <view class="author-info">
-              <text class="nickname">{{ post.nickname }}</text>
-              <text class="meta">📍 {{ post.city_name }} · 发布于 {{ post.created_at_text }}</text>
+            <view
+              v-for="node in radarNodes"
+              :key="'node-' + node.id"
+              class="radar-node"
+              :style="node.style"
+              @click="pingCompanion(node.nickname)"
+            >
+              <image v-if="node.avatar != ''" class="radar-node-avatar" :src="node.avatar" mode="aspectFill"></image>
+              <view v-else class="radar-node-fallback">
+                <text class="radar-node-fallback-icon">👤</text>
+              </view>
             </view>
           </view>
 
-          <text class="post-title">{{ post.title }}</text>
-          <text class="post-content">{{ post.content }}</text>
-
-          <view class="tag-row" v-if="post.tags.length > 0">
-            <text
-              v-for="(tag, index) in post.tags"
-              :key="post.id + '-' + index"
-              :class="['tag-chip', 'tag-chip-' + String(index % 5)]"
-            >
-              {{ tag }}
-            </text>
+          <view class="radar-tip">
+            <text class="radar-tip-text">已发现 {{ radarNodes.length }} 位附近同频游民</text>
           </view>
         </view>
       </view>
-
-      <view style="height: 18px;"></view>
-    </scroll-view>
+    </view>
 
     <view class="publish-fab" @click="goPublish">
       <text class="publish-fab-text">+</text>
@@ -77,12 +124,28 @@ interface CompanionItem {
   created_at_text: string
 }
 
+interface RadarNode {
+  id: string
+  nickname: string
+  avatar: string
+  style: {
+    top: string
+    left: string
+  }
+}
+
 const API_BASE_URL = 'http://localhost:3000'
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
 const TOKEN_KEY = 'token'
 
+const viewMode = ref<'list' | 'radar'>('list')
 const loading = ref(true)
-const companionList = ref<CompanionItem[]>([])
+const companions = ref<CompanionItem[]>([])
+const radarNodes = ref<RadarNode[]>([])
+
+function toggleViewMode() {
+  viewMode.value = viewMode.value == 'list' ? 'radar' : 'list'
+}
 
 function parseApiPayload<T>(raw: unknown): T | null {
   if (raw != null && typeof raw == 'object') {
@@ -113,40 +176,86 @@ function splitTags(rawTags: unknown): string[] {
     return []
   }
   return text
-    .split(/[、,，;；|/]+/)
+    .split(/[、，,|/]+/)
     .map((item) => item.trim())
     .filter((item) => item != '')
 }
 
-function formatCreatedAt(raw: unknown): string {
-  const text = String(raw || '').trim()
-  if (text == '') {
-    return '--'
+function formatTimeLabel(raw: unknown): string {
+  const source = String(raw || '').trim()
+  if (source == '') {
+    return '刚刚发布'
   }
-  const date = new Date(text)
-  if (Number.isNaN(date.getTime())) {
-    return text
+  const time = new Date(source).getTime()
+  if (!Number.isFinite(time)) {
+    return '刚刚发布'
   }
-  const y = String(date.getFullYear())
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const mm = String(date.getMinutes()).padStart(2, '0')
-  return y + '-' + m + '-' + d + ' ' + hh + ':' + mm
+  const diff = Date.now() - time
+  if (diff < 60 * 1000) {
+    return '刚刚发布'
+  }
+  if (diff < 60 * 60 * 1000) {
+    return String(Math.max(1, Math.floor(diff / (60 * 1000)))) + ' 分钟前'
+  }
+  if (diff < 24 * 60 * 60 * 1000) {
+    return String(Math.max(1, Math.floor(diff / (60 * 60 * 1000)))) + ' 小时前'
+  }
+  return String(Math.max(1, Math.floor(diff / (24 * 60 * 60 * 1000)))) + ' 天前'
+}
+
+function cityText(value: string): string {
+  const text = String(value || '').trim()
+  return text != '' ? text : '城市待定'
 }
 
 function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
-  const city = String(row.city_name ?? '').trim()
   return {
     id: String(row.id ?? ''),
-    nickname: String(row.nickname ?? '').trim() || '匿名搭子',
+    nickname: String(row.nickname ?? '').trim() || '匿名游民',
     avatar: String(row.avatar ?? '').trim(),
-    city_name: city != '' ? city : '未知城市',
+    city_name: String(row.city_name ?? '').trim(),
     title: String(row.title ?? '').trim(),
     content: String(row.content ?? '').trim(),
     tags: splitTags(row.tags),
-    created_at_text: formatCreatedAt(row.created_at)
+    created_at_text: formatTimeLabel(row.created_at)
   }
+}
+
+function randomInRange(min: number, max: number): number {
+  return Math.round((Math.random() * (max - min) + min) * 10) / 10
+}
+
+function buildRadarNodes(rows: CompanionItem[]): RadarNode[] {
+  const selected = rows.slice(0, 4)
+  return selected.map((item) => {
+    let top = randomInRange(20, 80)
+    let left = randomInRange(10, 90)
+    let attempts = 0
+
+    while (attempts < 8 && top > 40 && top < 60 && left > 35 && left < 65) {
+      top = randomInRange(20, 80)
+      left = randomInRange(10, 90)
+      attempts += 1
+    }
+
+    return {
+      id: item.id,
+      nickname: item.nickname,
+      avatar: item.avatar,
+      style: {
+        top: String(top) + '%',
+        left: String(left) + '%'
+      }
+    }
+  })
+}
+
+function pingCompanion(nickname: string) {
+  void nickname
+  uni.showToast({
+    title: '正在向该游民发起心跳信号...',
+    icon: 'none'
+  })
 }
 
 async function fetchCompanions(): Promise<CompanionItem[]> {
@@ -187,10 +296,13 @@ function goPublish() {
 async function fetchData() {
   loading.value = true
   try {
-    companionList.value = await fetchCompanions()
+    const rows = await fetchCompanions()
+    companions.value = rows
+    radarNodes.value = buildRadarNodes(rows)
   } catch (error) {
     console.error('[social] load companions failed:', error)
-    companionList.value = []
+    companions.value = []
+    radarNodes.value = []
     uni.showToast({ title: '加载搭子动态失败', icon: 'none' })
   } finally {
     loading.value = false
@@ -219,8 +331,14 @@ onUnload(() => {
 }
 
 .hero {
-  padding: 52px 16px 18px;
-  background-image: linear-gradient(132deg, #e7f4f0 0%, #f0efe5 44%, #f9ebdd 100%);
+  padding: 52px 16px 14px;
+  background-image: linear-gradient(135deg, #dfe9ff 0%, #e8eefc 40%, #ece8ff 100%);
+}
+
+.hero-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
 .hero-title {
@@ -235,25 +353,51 @@ onUnload(() => {
   color: #4b5563;
 }
 
-.hero-tips {
-  margin-top: 12px;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.hero-tip {
-  margin-right: 8px;
-  margin-bottom: 6px;
-  font-size: 11px;
-  color: #0f766e;
+.mode-toggle {
+  margin-left: 10px;
+  margin-top: 4px;
+  padding: 8px 12px;
   border-radius: 999px;
-  padding: 4px 10px;
-  border: 1px solid rgba(13, 148, 136, 0.22);
   background-color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(99, 102, 241, 0.22);
 }
 
-.feed {
-  height: calc(100vh - 146px);
+.mode-toggle-text {
+  font-size: 12px;
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.mode-stage {
+  position: relative;
+  height: calc(100vh - 132px);
+  overflow: hidden;
+}
+
+.list-mode,
+.radar-mode {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.mode-active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.mode-hidden {
+  opacity: 0;
+  transform: translateX(16px);
+  pointer-events: none;
+}
+
+.list-scroll {
+  height: 100%;
   padding: 12px 14px 0;
 }
 
@@ -287,7 +431,7 @@ onUnload(() => {
   color: #8c8c8c;
 }
 
-.post-card {
+.feed-card {
   margin-bottom: 14px;
   background-color: #ffffff;
   border-radius: 16px;
@@ -295,35 +439,45 @@ onUnload(() => {
   box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
 }
 
-.post-head {
+.feed-head {
   flex-direction: row;
   align-items: center;
 }
 
-.avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
-  background-color: #f3f4f6;
+.avatar-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  overflow: hidden;
+  background-color: #e5e7eb;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
 }
 
 .avatar-fallback {
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
+  width: 100%;
+  height: 100%;
   align-items: center;
   justify-content: center;
   background-color: #e5e7eb;
 }
 
 .avatar-fallback-icon {
-  font-size: 19px;
-  color: #6b7280;
+  font-size: 18px;
 }
 
-.author-info {
+.head-meta {
   flex: 1;
   margin-left: 10px;
+}
+
+.meta-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .nickname {
@@ -332,29 +486,31 @@ onUnload(() => {
   font-weight: 800;
 }
 
-.meta {
-  margin-top: 3px;
+.city-chip {
+  margin-left: 8px;
   font-size: 12px;
+  color: #4b5563;
+}
+
+.time-text {
+  margin-top: 4px;
+  font-size: 11px;
   color: #94a3b8;
 }
 
-.post-title {
+.feed-title {
   margin-top: 12px;
-  font-size: 20px;
-  line-height: 28px;
-  color: #0f172a;
+  font-size: 17px;
+  line-height: 24px;
+  color: #111827;
   font-weight: 900;
-  lines: 2;
-  text-overflow: ellipsis;
 }
 
-.post-content {
-  margin-top: 9px;
-  font-size: 14px;
-  line-height: 22px;
+.feed-content {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 20px;
   color: #475569;
-  lines: 3;
-  text-overflow: ellipsis;
 }
 
 .tag-row {
@@ -372,32 +528,159 @@ onUnload(() => {
 }
 
 .tag-chip-0 {
-  color: #9a3412;
+  color: #155e75;
+  background-color: #ecfeff;
+  border: 1px solid #a5f3fc;
+}
+
+.tag-chip-1 {
+  color: #7c2d12;
   background-color: #fff7ed;
   border: 1px solid #fed7aa;
 }
 
-.tag-chip-1 {
+.tag-chip-2 {
   color: #166534;
   background-color: #f0fdf4;
   border: 1px solid #bbf7d0;
 }
 
-.tag-chip-2 {
-  color: #1d4ed8;
+.tag-chip-3 {
+  color: #1e3a8a;
   background-color: #eff6ff;
   border: 1px solid #bfdbfe;
 }
 
-.tag-chip-3 {
-  color: #0f766e;
-  background-color: #f0fdfa;
-  border: 1px solid #99f6e4;
+.radar-mode {
+  padding: 12px 14px 16px;
 }
 
-.tag-chip-4 {
-  color: #7c2d12;
-  background-color: #fff1f2;
-  border: 1px solid #fecdd3;
+.radar-container {
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #172554 0%, #0f172a 48%, #020617 100%);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.4);
+  position: relative;
+}
+
+.radar-center-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120px;
+  height: 120px;
+  margin-left: -60px;
+  margin-top: -60px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.58);
+  opacity: 0;
+  animation: radar-ripple 3.2s infinite ease-out;
+}
+
+.scanner-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44%;
+  height: 2px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.06) 0%, rgba(56, 189, 248, 0.85) 100%);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+  animation: radar-scan 4.2s linear infinite;
+}
+
+.center-user {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(147, 197, 253, 0.85);
+  box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.22), 0 0 18px rgba(56, 189, 248, 0.45);
+}
+
+.center-user-avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.radar-node {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  margin-left: -23px;
+  margin-top: -23px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(186, 230, 253, 0.95);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.52);
+}
+
+.radar-node-avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.radar-node-fallback {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: #cbd5e1;
+}
+
+.radar-node-fallback-icon {
+  font-size: 18px;
+}
+
+.radar-tip {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 18px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background-color: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.radar-tip-text {
+  font-size: 12px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+@keyframes radar-ripple {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(4.1);
+    opacity: 0;
+  }
+}
+
+@keyframes radar-scan {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>

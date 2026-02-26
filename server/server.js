@@ -10,6 +10,7 @@ const cityRoutes = require('./src/routes/city')
 const houseRoutes = require('./src/routes/house')
 const jobRoutes = require('./src/routes/job')
 const companionRoutes = require('./src/routes/companion')
+const socialRoutes = require('./src/routes/social')
 const { pingDb } = require('./src/config/db')
 const { repairDbSchema } = require('./src/config/repairDbSchema')
 
@@ -84,6 +85,10 @@ if (ossConfigured) {
 
 app.use(cors())
 app.use(express.json())
+app.use('/api', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  next()
+})
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -98,6 +103,7 @@ app.use('/api/cities', cityRoutes)
 app.use('/api/houses', houseRoutes)
 app.use('/api/jobs', jobRoutes)
 app.use('/api/companions', companionRoutes)
+app.use('/api/social', socialRoutes)
 
 async function bootstrap() {
   try {

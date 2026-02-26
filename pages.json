@@ -58,6 +58,12 @@
       }
     },
     {
+      "path": "pages/social/publish",
+      "style": {
+        "navigationBarTitleText": "发布搭子"
+      }
+    },
+    {
       "path": "pages/login/login",
       "style": {
         "navigationBarTitleText": "登录"

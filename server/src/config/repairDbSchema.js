@@ -178,6 +178,7 @@ async function ensureCompanionsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS companions (
       id INT NOT NULL AUTO_INCREMENT,
+      user_id INT NOT NULL DEFAULT 0,
       nickname VARCHAR(80) NOT NULL,
       avatar VARCHAR(500) NOT NULL DEFAULT '',
       city_name VARCHAR(120) NOT NULL DEFAULT '',
@@ -187,6 +188,7 @@ async function ensureCompanionsTable() {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
+      KEY idx_companions_user_id (user_id),
       KEY idx_companions_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `)
@@ -246,6 +248,7 @@ async function repairCompanionsTable() {
     return
   }
 
+  await ensureColumn('companions', 'user_id', 'ALTER TABLE companions ADD COLUMN user_id INT NOT NULL DEFAULT 0 AFTER id')
   await ensureColumn('companions', 'nickname', "ALTER TABLE companions ADD COLUMN nickname VARCHAR(80) NOT NULL DEFAULT '' AFTER id")
   await ensureColumn('companions', 'avatar', "ALTER TABLE companions ADD COLUMN avatar VARCHAR(500) NOT NULL DEFAULT '' AFTER nickname")
   await ensureColumn('companions', 'city_name', "ALTER TABLE companions ADD COLUMN city_name VARCHAR(120) NOT NULL DEFAULT '' AFTER avatar")
@@ -277,6 +280,20 @@ async function ensureFavoritesTable() {
 }
 
 async function seedFavorites() {
+  const [userRows] = await pool.query(`
+    SELECT id
+    FROM users
+    ORDER BY id ASC
+    LIMIT 1
+  `)
+  if (!Array.isArray(userRows) || userRows.length == 0) {
+    return
+  }
+  const userId = Number(userRows[0]?.id || 0)
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return
+  }
+
   const [houseRows] = await pool.query(`
     SELECT id
     FROM houses
@@ -297,12 +314,12 @@ async function seedFavorites() {
     await pool.query(
       `
         INSERT INTO favorites (user_id, house_id, created_at)
-        SELECT 1, ?, DATE_SUB(NOW(), INTERVAL ? DAY)
+        SELECT ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY)
         WHERE NOT EXISTS (
-          SELECT 1 FROM favorites WHERE user_id = 1 AND house_id = ?
+          SELECT 1 FROM favorites WHERE user_id = ? AND house_id = ?
         )
       `,
-      [houseId, i, houseId]
+      [userId, houseId, i, userId, houseId]
     )
   }
 }

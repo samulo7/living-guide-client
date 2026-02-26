@@ -1,0 +1,236 @@
+<template>
+  <view class="page">
+    <view class="form-card">
+      <text class="title">发布搭子</text>
+
+      <text class="label">标题</text>
+      <input
+        class="input"
+        v-model="formTitle"
+        maxlength="160"
+        placeholder="例如：周末一起看房+吃饭"
+      />
+
+      <text class="label">内容</text>
+      <textarea
+        class="textarea"
+        v-model="formContent"
+        maxlength="2000"
+        placeholder="写清楚时间、地点、你希望的搭子类型"
+      />
+
+      <text class="label">标签（可多选）</text>
+      <view class="tag-selector">
+        <view
+          v-for="tag in TAG_OPTIONS"
+          :key="tag"
+          class="tag-option"
+          :class="{ 'tag-option-active': isTagSelected(tag) }"
+          @click="toggleTag(tag)"
+        >
+          <text class="tag-option-text">{{ tag }}</text>
+        </view>
+      </view>
+
+      <view class="submit-btn" @click="onSubmit">
+        <text class="submit-btn-text">{{ submitting ? '发布中...' : '立即发布' }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { request } from '../../utils/request'
+
+interface PublishResponse {
+  success?: boolean
+  id?: number
+  message?: string
+}
+
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const TAG_OPTIONS: string[] = [
+  '看房',
+  '探店',
+  '饭搭子',
+  '周末活动',
+  '运动',
+  '学习',
+  '散步',
+  '拼车'
+]
+
+const formTitle = ref('')
+const formContent = ref('')
+const selectedTags = ref<string[]>([])
+const submitting = ref(false)
+
+const normalizedTags = computed((): string[] => {
+  return selectedTags.value.slice(0, 8)
+})
+
+function isTagSelected(tag: string): boolean {
+  return selectedTags.value.includes(tag)
+}
+
+function toggleTag(tag: string) {
+  if (submitting.value) {
+    return
+  }
+  const index = selectedTags.value.findIndex((item) => item == tag)
+  if (index >= 0) {
+    selectedTags.value.splice(index, 1)
+    return
+  }
+  if (selectedTags.value.length >= 8) {
+    uni.showToast({ title: '最多选择 8 个标签', icon: 'none' })
+    return
+  }
+  selectedTags.value.push(tag)
+}
+
+async function onSubmit() {
+  const title = formTitle.value.trim()
+  const content = formContent.value.trim()
+  const tags = normalizedTags.value
+
+  if (title.length < 2) {
+    uni.showToast({ title: '标题至少 2 个字', icon: 'none' })
+    return
+  }
+  if (content.length < 2) {
+    uni.showToast({ title: '内容至少 2 个字', icon: 'none' })
+    return
+  }
+  if (tags.length == 0) {
+    uni.showToast({ title: '请至少选择 1 个标签', icon: 'none' })
+    return
+  }
+
+  if (submitting.value) {
+    return
+  }
+
+  submitting.value = true
+  try {
+    const res = await request<PublishResponse>({
+      url: '/api/social/publish',
+      method: 'POST',
+      data: {
+        title,
+        content,
+        tags
+      }
+    })
+
+    if (res.success !== true) {
+      uni.showToast({ title: res.message || '发布失败', icon: 'none' })
+      return
+    }
+
+    uni.showToast({ title: '发布成功', icon: 'none' })
+    uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 1500)
+  } catch (error) {
+    console.error('[social-publish] failed:', error)
+    uni.showToast({ title: '发布失败，请稍后重试', icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<style scoped>
+.page {
+  min-height: 100vh;
+  background-color: #f5f7f6;
+  padding: 18px 14px;
+}
+
+.form-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.title {
+  font-size: 24px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.label {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.input {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ea;
+  background-color: #f8fafc;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.textarea {
+  min-height: 128px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ea;
+  background-color: #f8fafc;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.tag-selector {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-option {
+  margin-right: 8px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  padding: 6px 12px;
+}
+
+.tag-option-active {
+  border-color: #16a34a;
+  background-color: #ecfdf3;
+}
+
+.tag-option-text {
+  font-size: 12px;
+  color: #334155;
+}
+
+.tag-option-active .tag-option-text {
+  color: #166534;
+  font-weight: 700;
+}
+
+.submit-btn {
+  margin-top: 18px;
+  height: 46px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: #16a34a;
+}
+
+.submit-btn-text {
+  font-size: 16px;
+  color: #ffffff;
+  font-weight: 800;
+}
+</style>

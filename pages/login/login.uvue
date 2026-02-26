@@ -2,26 +2,100 @@
   <view class="page">
     <view class="center-wrap">
       <view class="brand-block">
-        <text class="brand-logo">🏕</text>
+        <text class="brand-logo">LG</text>
         <text class="brand-title">躺平指南</text>
-        <text class="brand-subtitle">寻找你的数字避难所</text>
+        <text class="brand-subtitle">找到你的数字避风港</text>
       </view>
 
-      <text class="tip">登录后开启完整游民体验</text>
+      <text class="tip">输入手机号后，点击一键登录</text>
+      <input
+        class="phone-input"
+        type="number"
+        v-model="phone"
+        maxlength="20"
+        placeholder="请输入手机号"
+      />
+
       <view class="wechat-btn" @click="onWechatLogin">
-        <text class="wechat-btn-text">微信一键登录</text>
+        <text class="wechat-btn-text">{{ loading ? '登录中...' : '微信一键登录' }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-function onWechatLogin() {
-  uni.setStorageSync('isLogged', true)
-  uni.showToast({ title: '登录成功', icon: 'none' })
-  setTimeout(() => {
-    uni.navigateBack()
-  }, 1000)
+import { ref } from 'vue'
+import { request } from '../../utils/request'
+
+interface LoginResponse {
+  success: boolean
+  token?: string
+  user?: Record<string, unknown>
+  message?: string
+}
+
+const TOKEN_KEY = 'token'
+const USER_INFO_KEY = 'userInfo'
+
+const phone = ref('')
+const loading = ref(false)
+
+function parseLoginError(error: unknown): string {
+  if (error != null && typeof error == 'object') {
+    const payload = (error as Record<string, unknown>).data
+    if (payload != null && typeof payload == 'object') {
+      const message = String((payload as Record<string, unknown>).message ?? '').trim()
+      if (message != '') {
+        return message
+      }
+    }
+  }
+  return '登录失败，请稍后重试'
+}
+
+async function onWechatLogin() {
+  const value = phone.value.trim()
+  if (value == '') {
+    uni.showToast({ title: '请输入手机号', icon: 'none' })
+    return
+  }
+
+  if (loading.value) {
+    return
+  }
+
+  loading.value = true
+  try {
+    const data = await request<LoginResponse>({
+      url: '/api/auth/login',
+      method: 'POST',
+      data: {
+        phone: value,
+        code: '123456'
+      }
+    })
+
+    if (data.success !== true || String(data.token || '').trim() == '') {
+      uni.showToast({ title: data.message || '登录失败', icon: 'none' })
+      return
+    }
+
+    // 清掉旧账号缓存，避免串号和脏数据
+    uni.clearStorageSync()
+    uni.setStorageSync(TOKEN_KEY, String(data.token))
+    if (data.user != null && typeof data.user == 'object') {
+      uni.setStorageSync(USER_INFO_KEY, data.user)
+    }
+
+    // 登录成功后强制重建用户页，触发 onLoad 重新拉取数据
+    uni.reLaunch({
+      url: '/pages/user/user'
+    })
+  } catch (error) {
+    uni.showToast({ title: parseLoginError(error), icon: 'none' })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -42,12 +116,14 @@ function onWechatLogin() {
 
 .brand-block {
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 
 .brand-logo {
-  font-size: 52px;
-  line-height: 60px;
+  font-size: 32px;
+  line-height: 38px;
+  color: #16a34a;
+  font-weight: 900;
 }
 
 .brand-title {
@@ -64,9 +140,21 @@ function onWechatLogin() {
 }
 
 .tip {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   font-size: 14px;
   color: #6b7280;
+}
+
+.phone-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: #0f172a;
 }
 
 .wechat-btn {

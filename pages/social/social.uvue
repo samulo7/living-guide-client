@@ -97,6 +97,10 @@
         </view>
       </view>
     </view>
+
+    <view class="publish-fab" @click="goPublish">
+      <text class="publish-fab-text">+</text>
+    </view>
   </view>
 </template>
 
@@ -131,6 +135,8 @@ interface RadarNode {
 }
 
 const API_BASE_URL = 'http://localhost:3000'
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const TOKEN_KEY = 'token'
 
 const viewMode = ref<'list' | 'radar'>('list')
 const loading = ref(true)
@@ -274,7 +280,20 @@ async function fetchCompanions(): Promise<CompanionItem[]> {
   })
 }
 
-onLoad(async () => {
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+function goPublish() {
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再发布', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/publish' })
+}
+
+async function fetchData() {
   loading.value = true
   try {
     const rows = await fetchCompanions()
@@ -288,6 +307,20 @@ onLoad(async () => {
   } finally {
     loading.value = false
   }
+}
+
+function onRefreshSocialList() {
+  fetchData()
+}
+
+onLoad(async () => {
+  uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  uni.$on(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  await fetchData()
+})
+
+onUnload(() => {
+  uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
 })
 </script>
 
@@ -366,6 +399,26 @@ onLoad(async () => {
 .list-scroll {
   height: 100%;
   padding: 12px 14px 0;
+}
+
+.publish-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  align-items: center;
+  justify-content: center;
+  background-color: #16a34a;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.38);
+}
+
+.publish-fab-text {
+  font-size: 34px;
+  line-height: 34px;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .state-wrap {

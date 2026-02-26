@@ -61,6 +61,9 @@
                 {{ tag }}
               </text>
             </view>
+            <view class="favorite-btn" :class="{ 'favorite-btn-active': isFavorited(room.id) }" @click.stop="onFavorite(room.id)">
+              <text class="favorite-btn-text">{{ isFavorited(room.id) ? '已收藏' : '收藏' }}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -72,6 +75,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { request } from '../../utils/request'
 
 interface HouseListResponse {
   ok: boolean
@@ -95,13 +99,26 @@ interface CityOption {
   label: string
 }
 
+interface FavoriteListResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+}
+
+interface FavoriteResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
 const API_BASE_URL = 'http://localhost:3000'
+const TOKEN_KEY = 'token'
 
 const loading = ref(true)
 const houseList = ref<HouseItem[]>([])
 const cityOptions = ref<CityOption[]>([{ value: 'all', label: '全部城市' }])
 const currentCity = ref('all')
 const cityQuery = ref('')
+const favoriteMap = ref<Record<string, boolean>>({})
 
 function parseApiPayload<T>(raw: unknown): T | null {
   if (raw != null && typeof raw == 'object') {
@@ -204,6 +221,91 @@ function goDetail(id: string) {
   uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
 }
 
+function isFavorited(houseId: string): boolean {
+  return favoriteMap.value[String(houseId)] === true
+}
+
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+async function syncFavoriteMap() {
+  if (!hasToken()) {
+    favoriteMap.value = {}
+    return
+  }
+
+  try {
+    const res = await request<FavoriteListResponse>({
+      url: '/api/user/favorites',
+      method: 'GET'
+    })
+    if (res.ok !== true || !Array.isArray(res.data)) {
+      return
+    }
+
+    const nextMap: Record<string, boolean> = {}
+    res.data.forEach((item) => {
+      const id = String(item.id || '').trim()
+      if (id != '') {
+        nextMap[id] = true
+      }
+    })
+    favoriteMap.value = nextMap
+  } catch (error) {
+    console.error('[sublet-index] load favorites failed:', error)
+  }
+}
+
+async function onFavorite(houseId: string) {
+  const id = String(houseId || '').trim()
+  if (id == '') {
+    return
+  }
+
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再收藏', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+
+  try {
+    const res = await request<FavoriteResponse>({
+      url: '/api/user/favorite/toggle',
+      method: 'POST',
+      data: {
+        house_id: Number.parseInt(id, 10)
+      }
+    })
+    if (res.ok !== true) {
+      uni.showToast({ title: res.message || '收藏失败', icon: 'none' })
+      return
+    }
+
+    const nextIsFavorited =
+      res.data?.isFavorited === true ||
+      res.data?.isFavorited === 1 ||
+      res.data?.isFavorited === '1'
+
+    if (nextIsFavorited) {
+      favoriteMap.value = {
+        ...favoriteMap.value,
+        [id]: true
+      }
+    } else {
+      const nextMap = { ...favoriteMap.value }
+      delete nextMap[id]
+      favoriteMap.value = nextMap
+    }
+
+    uni.$emit('REFRESH_FAVORITES')
+    uni.showToast({ title: nextIsFavorited ? '已加入收藏' : '已取消收藏', icon: 'none' })
+  } catch (error) {
+    console.error('[sublet-index] favorite toggle failed:', error)
+    uni.showToast({ title: '收藏失败，请稍后重试', icon: 'none' })
+  }
+}
+
 async function loadHouses(cityId: string) {
   loading.value = true
   try {
@@ -228,11 +330,13 @@ async function selectCity(cityId: string) {
 onLoad(async (options) => {
   const city = options?.city
   if (city != null) {
-    cityQuery.value = decodeURIComponent(String(city)).trim()
+    const decoded = decodeURIComponent(String(city))
+    cityQuery.value = String(decoded || '').trim()
   }
 
   loading.value = true
   try {
+    await syncFavoriteMap()
     const allRows = await fetchHouses('all')
     buildCityOptions(allRows)
     let filtered = allRows
@@ -261,6 +365,10 @@ onLoad(async (options) => {
   } finally {
     loading.value = false
   }
+})
+
+onShow(() => {
+  syncFavoriteMap()
 })
 </script>
 
@@ -430,5 +538,28 @@ onLoad(async (options) => {
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
   padding: 4px 9px;
+}
+
+.favorite-btn {
+  margin-top: 10px;
+  align-self: flex-start;
+  border-radius: 999px;
+  border: 1px solid #16a34a;
+  background-color: #ffffff;
+  padding: 5px 12px;
+}
+
+.favorite-btn-active {
+  background-color: #16a34a;
+}
+
+.favorite-btn-text {
+  font-size: 12px;
+  color: #166534;
+  font-weight: 700;
+}
+
+.favorite-btn-active .favorite-btn-text {
+  color: #ffffff;
 }
 </style>

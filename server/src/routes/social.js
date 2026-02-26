@@ -23,7 +23,7 @@ router.post('/publish', authMiddleware, async (req, res) => {
   const userId = Number(req.user?.id || 0)
   if (!Number.isInteger(userId) || userId <= 0) {
     res.status(401).json({
-      ok: false,
+      success: false,
       message: 'Unauthorized'
     })
     return
@@ -35,7 +35,7 @@ router.post('/publish', authMiddleware, async (req, res) => {
 
   if (title.length < 2 || title.length > 160) {
     res.status(400).json({
-      ok: false,
+      success: false,
       message: 'Title length must be 2-160 characters'
     })
     return
@@ -43,7 +43,7 @@ router.post('/publish', authMiddleware, async (req, res) => {
 
   if (content.length < 2 || content.length > 2000) {
     res.status(400).json({
-      ok: false,
+      success: false,
       message: 'Content length must be 2-2000 characters'
     })
     return
@@ -62,7 +62,7 @@ router.post('/publish', authMiddleware, async (req, res) => {
 
     if (!Array.isArray(rows) || rows.length == 0) {
       res.status(404).json({
-        ok: false,
+        success: false,
         message: 'User not found'
       })
       return
@@ -75,26 +75,20 @@ router.post('/publish', authMiddleware, async (req, res) => {
 
     const [insertResult] = await pool.query(
       `
-        INSERT INTO companions (nickname, avatar, city_name, title, content, tags)
-        VALUES (?, ?, '', ?, ?, ?)
+        INSERT INTO companions (user_id, nickname, avatar, city_name, title, content, tags)
+        VALUES (?, ?, ?, '', ?, ?, ?)
       `,
-      [nickname != '' ? nickname : `游民_${userId}`, avatar, title, content, tagsText]
+      [userId, nickname != '' ? nickname : `游民_${userId}`, avatar, title, content, tagsText]
     )
 
     res.status(201).json({
-      ok: true,
-      message: 'Published',
-      data: {
-        id: Number(insertResult.insertId || 0),
-        title,
-        content,
-        tags
-      }
+      success: true,
+      id: Number(insertResult.insertId || 0)
     })
   } catch (error) {
     console.error('[POST /api/social/publish] failed:', error.message)
     res.status(500).json({
-      ok: false,
+      success: false,
       message: 'Failed to publish'
     })
   }

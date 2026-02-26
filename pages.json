@@ -3,7 +3,7 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "躺平旅居指南",
+        "navigationBarTitleText": "\u8eba\u5e73\u65c5\u5c45\u6307\u5357",
         "navigationStyle": "custom",
         "enablePullDownRefresh": false
       }
@@ -11,7 +11,7 @@
     {
       "path": "pages/detail/detail",
       "style": {
-        "navigationBarTitleText": "城市详情",
+        "navigationBarTitleText": "\u57ce\u5e02\u8be6\u60c5",
         "navigationBarBackgroundColor": "#ffffff",
         "navigationBarTextStyle": "black"
       }
@@ -19,67 +19,85 @@
     {
       "path": "pages/webview/webview",
       "style": {
-        "navigationBarTitleText": "地图详情"
+        "navigationBarTitleText": "\u5730\u56fe\u8be6\u60c5"
       }
     },
     {
       "path": "pages/gigs/gigs",
       "style": {
-        "navigationBarTitleText": "搞钱大厅",
+        "navigationBarTitleText": "\u641e\u94b1\u5927\u5385",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/gigs/detail",
       "style": {
-        "navigationBarTitleText": "职位详情",
+        "navigationBarTitleText": "\u804c\u4f4d\u8be6\u60c5",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/sublet/index",
       "style": {
-        "navigationBarTitleText": "安家大厅",
+        "navigationBarTitleText": "\u5b89\u5bb6\u5927\u5385",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/sublet/detail",
       "style": {
-        "navigationBarTitleText": "房源详情",
+        "navigationBarTitleText": "\u623f\u6e90\u8be6\u60c5",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/social/social",
       "style": {
-        "navigationBarTitleText": "搭子广场",
+        "navigationBarTitleText": "\u642d\u5b50\u5e7f\u573a",
         "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/social/publish",
       "style": {
-        "navigationBarTitleText": "发布搭子"
+        "navigationBarTitleText": "\u53d1\u5e03\u642d\u5b50"
       }
     },
     {
       "path": "pages/login/login",
       "style": {
-        "navigationBarTitleText": "登录"
+        "navigationBarTitleText": "\u767b\u5f55"
       }
     },
     {
       "path": "pages/user/user",
       "style": {
-        "navigationBarTitleText": "我的基地",
+        "navigationBarTitleText": "\u6211\u7684\u57fa\u5730",
         "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/user/edit",
+      "style": {
+        "navigationBarTitleText": "\u7f16\u8f91\u8d44\u6599"
+      }
+    },
+    {
+      "path": "pages/social/companion_detail",
+      "style": {
+        "navigationBarTitleText": "\u642d\u5b50\u8be6\u60c5"
+      }
+    },
+    {
+      "path": "pages/social/user_profile",
+      "style": {
+        "navigationBarTitleText": "\u4e2a\u4eba\u4e3b\u9875"
       }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "躺平旅居指南",
+    "navigationBarTitleText": "\u8eba\u5e73\u65c5\u5c45\u6307\u5357",
     "navigationBarBackgroundColor": "#F8F8F8",
     "backgroundColor": "#F8F8F8"
   },
@@ -91,31 +109,31 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页",
+        "text": "\u9996\u9875",
         "iconPath": "static/tabbar/home.svg",
         "selectedIconPath": "static/tabbar/home-active.svg"
       },
       {
         "pagePath": "pages/sublet/index",
-        "text": "安家",
+        "text": "\u5b89\u5bb6",
         "iconPath": "static/tabbar/house.svg",
         "selectedIconPath": "static/tabbar/house-active.svg"
       },
       {
         "pagePath": "pages/gigs/gigs",
-        "text": "搞钱",
+        "text": "\u641e\u94b1",
         "iconPath": "static/tabbar/money.svg",
         "selectedIconPath": "static/tabbar/money-active.svg"
       },
       {
         "pagePath": "pages/social/social",
-        "text": "搭子",
+        "text": "\u642d\u5b50",
         "iconPath": "static/tabbar/social.svg",
         "selectedIconPath": "static/tabbar/social-active.svg"
       },
       {
         "pagePath": "pages/user/user",
-        "text": "我的",
+        "text": "\u6211\u7684",
         "iconPath": "static/tabbar/user.svg",
         "selectedIconPath": "static/tabbar/user-active.svg"
       }

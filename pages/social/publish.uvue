@@ -1,25 +1,58 @@
 <template>
   <view class="page">
     <view class="form-card">
-      <text class="title">发布搭子</text>
+      <text class="title">{{ UI.pageTitle }}</text>
 
-      <text class="label">标题</text>
+      <view class="label-row">
+        <text class="label">{{ UI.titleLabel }}</text>
+        <text class="counter">{{ titleLength }}/{{ TITLE_MAX_LENGTH }}</text>
+      </view>
       <input
         class="input"
         v-model="formTitle"
-        maxlength="160"
-        placeholder="例如：周末一起看房+吃饭"
+        :maxlength="TITLE_MAX_LENGTH"
+        :placeholder="UI.titlePlaceholder"
       />
 
-      <text class="label">内容</text>
+      <view class="label-row">
+        <text class="label">{{ UI.contentLabel }}</text>
+        <text class="counter">{{ contentLength }}/{{ CONTENT_MAX_LENGTH }}</text>
+      </view>
       <textarea
         class="textarea"
         v-model="formContent"
-        maxlength="2000"
-        placeholder="写清楚时间、地点、你希望的搭子类型"
+        :maxlength="CONTENT_MAX_LENGTH"
+        :placeholder="UI.contentPlaceholder"
       />
 
-      <text class="label">标签（可多选）</text>
+      <text class="label">{{ UI.locationLabel }}</text>
+      <input
+        class="input"
+        v-model="locationKeyword"
+        maxlength="40"
+        :placeholder="UI.locationSearchPlaceholder"
+      />
+      <view v-if="searchingLocationTips" class="tips-loading">
+        <text class="tips-loading-text">{{ UI.searchingLocation }}</text>
+      </view>
+      <view v-else-if="locationTips.length > 0" class="tips-list">
+        <view
+          v-for="(tip, index) in locationTips"
+          :key="tip.title + '-' + tip.lat + '-' + tip.lng + '-' + index"
+          class="tip-item"
+          @click="onPickLocationTip(tip)"
+        >
+          <text class="tip-title">{{ tip.title }}</text>
+          <text class="tip-address">{{ tip.address }}</text>
+        </view>
+      </view>
+
+      <view class="location-picker" @click="onChooseLocation">
+        <text class="location-text">{{ locationDisplayText }}</text>
+      </view>
+      <text class="location-hint">{{ UI.locationHint }}</text>
+
+      <text class="label">{{ UI.tagsLabel }}</text>
       <view class="tag-selector">
         <view
           v-for="tag in TAG_OPTIONS"
@@ -32,15 +65,43 @@
         </view>
       </view>
 
-      <view class="submit-btn" @click="onSubmit">
-        <text class="submit-btn-text">{{ submitting ? '发布中...' : '立即发布' }}</text>
+      <view class="media-head">
+        <text class="label">{{ UI.imagesLabel }}</text>
+        <text class="counter">{{ selectedImages.length }}/3</text>
+      </view>
+      <view class="image-grid">
+        <view
+          v-for="(img, index) in selectedImages"
+          :key="img + '-' + index"
+          class="image-thumb-wrap"
+        >
+          <image class="image-thumb" :src="img" mode="aspectFill" @click="previewImages(index)"></image>
+          <view class="remove-btn" @click="removeImage(index)">
+            <text class="remove-btn-text">x</text>
+          </view>
+        </view>
+        <view v-if="selectedImages.length < 3" class="add-image-btn" @click="chooseImages">
+          <text class="add-image-text">+</text>
+        </view>
+      </view>
+
+      <text class="label">{{ UI.contactLabel }}</text>
+      <input
+        class="input"
+        v-model="contact"
+        maxlength="120"
+        :placeholder="UI.contactPlaceholder"
+      />
+
+      <view class="submit-btn" :class="{ 'submit-btn-disabled': !canSubmit }" @click="onSubmit">
+        <text class="submit-btn-text">{{ submitting ? UI.submittingText : UI.submitText }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { request } from '../../utils/request'
 
 interface PublishResponse {
@@ -49,25 +110,140 @@ interface PublishResponse {
   message?: string
 }
 
+interface RegeoResponse {
+  ok?: boolean
+  data?: {
+    formatted_address?: string
+    province?: string
+    city?: string
+    district?: string
+    township?: string
+  }
+  message?: string
+}
+
+interface AmapInputTipItem {
+  title?: string
+  address?: string
+  lat?: number
+  lng?: number
+}
+
+interface AmapInputTipsResponse {
+  ok?: boolean
+  data?: AmapInputTipItem[]
+  message?: string
+}
+
+interface LocationTip {
+  title: string
+  address: string
+  lat: number
+  lng: number
+}
+
+const UI = {
+  pageTitle: '\u53d1\u5e03\u642d\u5b50',
+  titleLabel: '\u6807\u9898',
+  titlePlaceholder: '\u4f8b\u5982\uff1a\u5468\u672b\u4e00\u8d77\u770b\u623f\u3001\u5403\u996d',
+  contentLabel: '\u5185\u5bb9',
+  contentPlaceholder: '\u5199\u6e05\u695a\u65f6\u95f4\u3001\u5730\u70b9\u3001\u4f60\u5e0c\u671b\u7684\u642d\u5b50\u7c7b\u578b',
+  locationLabel: '\u4f4d\u7f6e\uff08\u5fc5\u586b\uff09',
+  locationSearchPlaceholder: '\u641c\u7d22\u5c0f\u533a\u002f\u5546\u5708\u002f\u5730\u94c1\u7ad9',
+  searchingLocation: '\u6b63\u5728\u641c\u7d22\u5730\u70b9\u2026',
+  locationHint: '\u70b9\u51fb\u4e0a\u6846\u641c\u7d22\u9009\u62e9\uff0c\u6216\u70b9\u51fb\u4e0b\u65b9\u201c\u5f53\u524d\u5b9a\u4f4d\u201d',
+  tagsLabel: '\u6807\u7b7e\uff08\u53ef\u591a\u9009\uff09',
+  imagesLabel: '\u56fe\u7247\uff08\u6700\u591a 3 \u5f20\uff09',
+  contactLabel: '\u8054\u7cfb\u65b9\u5f0f\uff08\u9009\u586b\uff09',
+  contactPlaceholder: '\u5fae\u4fe1\u53f7\u6216\u624b\u673a\u53f7',
+  submittingText: '\u53d1\u5e03\u4e2d\u2026',
+  submitText: '\u7acb\u5373\u53d1\u5e03',
+  resolvingLocation: '\u6b63\u5728\u89e3\u6790\u5730\u5740\u2026',
+  locationSelectedPrefix: '\u5df2\u9009\uff1a',
+  locationEmpty: '\u70b9\u51fb\u8fdb\u884c\u5f53\u524d\u5b9a\u4f4d',
+  currentLocationLabel: '\u5f53\u524d\u5b9a\u4f4d',
+  browserNotSupported: '\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u5b9a\u4f4d',
+  browserLocateFailed: '\u5b9a\u4f4d\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u5b9a\u4f4d\u6743\u9650',
+  browserSecureContextRequired: '\u5f53\u524d\u4e3a HTTP \u73af\u5883\uff0c\u6d4f\u89c8\u5668\u7981\u6b62\u5b9a\u4f4d\uff0c\u8bf7\u4f7f\u7528 HTTPS \u6216\u4e0a\u65b9\u641c\u7d22\u9009\u70b9',
+  browserPermissionDenied: '\u5b9a\u4f4d\u6743\u9650\u5df2\u7981\u7528\uff0c\u8bf7\u5728\u6d4f\u89c8\u5668\u7ad9\u70b9\u8bbe\u7f6e\u4e2d\u5141\u8bb8\u4f4d\u7f6e\u6743\u9650',
+  browserPositionUnavailable: '\u5f53\u524d\u65e0\u6cd5\u83b7\u53d6\u5b9a\u4f4d\uff0c\u8bf7\u79fb\u52a8\u5230\u5f00\u9614\u533a\u57df\u6216\u4f7f\u7528\u641c\u7d22\u9009\u70b9',
+  browserLocateTimeout: '\u5b9a\u4f4d\u8d85\u65f6\uff0c\u8bf7\u91cd\u8bd5\u6216\u4f7f\u7528\u641c\u7d22\u9009\u70b9',
+  amapAddressFallback: '\u9ad8\u5fb7\u672a\u8fd4\u56de\u5730\u5740\uff0c\u8bf7\u4ece\u641c\u7d22\u5217\u8868\u9009\u62e9',
+  amapKeyMissing: '\u670d\u52a1\u7aef\u672a\u914d\u7f6e\u9ad8\u5fb7 Key',
+  noAddressForCoordinate: '\u5f53\u524d\u5750\u6807\u6682\u65e0\u53ef\u7528\u5730\u5740\uff0c\u8bf7\u4f7f\u7528\u641c\u7d22\u9009\u70b9',
+  invalidLocation: '\u672a\u83b7\u53d6\u5230\u6709\u6548\u5730\u5740\uff0c\u8bf7\u4f7f\u7528\u641c\u7d22\u9009\u70b9',
+  chooseCanceled: '\u5df2\u53d6\u6d88\u9009\u70b9',
+  chooseFailed: '\u9009\u70b9\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5',
+  maxTagReached: '\u6700\u591a\u9009\u62e9 8 \u4e2a\u6807\u7b7e',
+  localImageNotice: '\u672c\u5730\u56fe\u7247\u4ec5\u9884\u89c8\uff0c\u9700\u5148\u4e0a\u4f20\u624d\u80fd\u6301\u4e45\u4fdd\u5b58',
+  titleTooShort: '\u6807\u9898\u81f3\u5c11 2 \u4e2a\u5b57',
+  contentTooShort: '\u5185\u5bb9\u81f3\u5c11 2 \u4e2a\u5b57',
+  locationRequired: '\u8bf7\u5148\u9009\u62e9\u5730\u5740',
+  publishFailed: '\u53d1\u5e03\u5931\u8d25',
+  publishSuccess: '\u53d1\u5e03\u6210\u529f',
+  publishRetry: '\u53d1\u5e03\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5'
+}
+
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const TITLE_MIN_LENGTH = 2
+const TITLE_MAX_LENGTH = 20
+const CONTENT_MIN_LENGTH = 2
+const CONTENT_MAX_LENGTH = 200
 const TAG_OPTIONS: string[] = [
-  '看房',
-  '探店',
-  '饭搭子',
-  '周末活动',
-  '运动',
-  '学习',
-  '散步',
-  '拼车'
+  '\u770b\u623f',
+  '\u63a2\u5e97',
+  '\u996d\u642d\u5b50',
+  '\u8fd0\u52a8',
+  '\u5b66\u4e60',
+  '\u5468\u672b',
+  '\u6563\u6b65',
+  '\u62fc\u8f66'
 ]
+
+let amapConfigWarned = false
+let amapEmptyAddressWarned = false
+let imageUploadWarned = false
+let locationTipsTimer: any = null
+let locationTipsRequestSeq = 0
+let skipNextLocationTipsSearch = false
 
 const formTitle = ref('')
 const formContent = ref('')
+const locationKeyword = ref('')
+const locationName = ref('')
+const locationLat = ref<number | null>(null)
+const locationLng = ref<number | null>(null)
+const resolvingLocation = ref(false)
+const searchingLocationTips = ref(false)
+const locationTips = ref<LocationTip[]>([])
 const selectedTags = ref<string[]>([])
+const selectedImages = ref<string[]>([])
+const contact = ref('')
 const submitting = ref(false)
 
-const normalizedTags = computed((): string[] => {
-  return selectedTags.value.slice(0, 8)
+const titleLength = computed(() => formTitle.value.trim().length)
+const contentLength = computed(() => formContent.value.trim().length)
+const normalizedTags = computed(() => selectedTags.value.slice(0, 8))
+const locationDisplayText = computed(() => {
+  if (resolvingLocation.value) {
+    return UI.resolvingLocation
+  }
+  if (locationName.value.trim() != '') {
+    return UI.locationSelectedPrefix + locationName.value
+  }
+  return UI.locationEmpty
+})
+const canSubmit = computed(() => {
+  if (submitting.value || resolvingLocation.value) {
+    return false
+  }
+  if (titleLength.value < TITLE_MIN_LENGTH || contentLength.value < CONTENT_MIN_LENGTH) {
+    return false
+  }
+  if (locationName.value.trim() == '') {
+    return false
+  }
+  return true
 })
 
 function isTagSelected(tag: string): boolean {
@@ -84,31 +260,424 @@ function toggleTag(tag: string) {
     return
   }
   if (selectedTags.value.length >= 8) {
-    uni.showToast({ title: '最多选择 8 个标签', icon: 'none' })
+    uni.showToast({ title: UI.maxTagReached, icon: 'none' })
     return
   }
   selectedTags.value.push(tag)
+}
+
+function formatLocationDisplay(name: string, address: string): string {
+  const cleanName = String(name || '').trim()
+  const cleanAddress = String(address || '').trim()
+  if (cleanName != '' && cleanAddress != '') {
+    return cleanName == cleanAddress ? cleanName : `${cleanName} · ${cleanAddress}`
+  }
+  return cleanName || cleanAddress
+}
+
+function mapLocationTip(item: AmapInputTipItem): LocationTip | null {
+  const title = String(item.title || '').trim()
+  const address = String(item.address || '').trim()
+  const lat = Number(item.lat)
+  const lng = Number(item.lng)
+  if (title == '' || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null
+  }
+  return {
+    title,
+    address,
+    lat,
+    lng
+  }
+}
+
+function isWebPlatform(): boolean {
+  if (typeof window != 'undefined' && typeof document != 'undefined') {
+    return true
+  }
+  try {
+    const platform = String(uni.getSystemInfoSync().uniPlatform || '').toLowerCase()
+    return platform == 'web' || platform == 'h5'
+  } catch (error) {
+    return false
+  }
+}
+
+function isSecureBrowserContext(): boolean {
+  try {
+    const value = (globalThis as { isSecureContext?: boolean }).isSecureContext
+    if (typeof value == 'boolean') {
+      return value
+    }
+  } catch (error) {
+    // ignore runtime mismatch
+  }
+  return false
+}
+
+async function getBrowserGeolocationPermissionState(): Promise<string> {
+  try {
+    const nav = (globalThis as { navigator?: { permissions?: { query?: Function } } }).navigator
+    const permissions = nav?.permissions
+    const query = permissions?.query
+    if (permissions == null || typeof query != 'function') {
+      return 'unknown'
+    }
+    const result = await query.call(permissions, { name: 'geolocation' })
+    const state = String((result as { state?: string })?.state || '').trim()
+    return state != '' ? state : 'unknown'
+  } catch (error) {
+    return 'unknown'
+  }
+}
+
+function isPersistableImageUrl(url: string): boolean {
+  const text = String(url || '').trim().toLowerCase()
+  if (text == '') {
+    return false
+  }
+  if (text.startsWith('blob:') || text.startsWith('file:') || text.startsWith('wxfile:') || text.startsWith('data:')) {
+    return false
+  }
+  return text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/')
+}
+
+async function resolveAddressByAmap(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await request<RegeoResponse>({
+      url: '/api/map/regeo',
+      method: 'GET',
+      data: {
+        lat,
+        lng
+      }
+    })
+    if (res.ok === true) {
+      const formattedAddress = String(res.data?.formatted_address || '').trim()
+      if (formattedAddress != '') {
+        return formattedAddress
+      }
+      const province = String(res.data?.province || '').trim()
+      const city = String(res.data?.city || '').trim()
+      const district = String(res.data?.district || '').trim()
+      const township = String(res.data?.township || '').trim()
+      const composed = [province, city, district, township].filter((item) => item != '').join('')
+      if (composed != '') {
+        return composed
+      }
+      if (!amapEmptyAddressWarned) {
+        amapEmptyAddressWarned = true
+        uni.showToast({ title: UI.amapAddressFallback, icon: 'none' })
+      }
+    }
+  } catch (error) {
+    const statusCode = Number((error as { statusCode?: number })?.statusCode || 0)
+    const message = String((error as { data?: { message?: string } })?.data?.message || '')
+    if (!amapConfigWarned && (statusCode == 503 || message.includes('AMAP_WEB_KEY'))) {
+      amapConfigWarned = true
+      uni.showToast({ title: UI.amapKeyMissing, icon: 'none' })
+    }
+    if (!amapEmptyAddressWarned && statusCode == 422) {
+      amapEmptyAddressWarned = true
+      uni.showToast({ title: UI.noAddressForCoordinate, icon: 'none' })
+    }
+    console.error('[social-publish] resolve address failed:', error)
+  }
+  return ''
+}
+
+async function fetchLocationTips(keyword: string): Promise<LocationTip[]> {
+  const res = await request<AmapInputTipsResponse>({
+    url: '/api/map/inputtips',
+    method: 'GET',
+    data: {
+      keyword,
+      page_size: 8
+    }
+  })
+  if (res.ok !== true || !Array.isArray(res.data)) {
+    return []
+  }
+  const list: LocationTip[] = []
+  res.data.forEach((item) => {
+    const mapped = mapLocationTip(item)
+    if (mapped != null) {
+      list.push(mapped)
+    }
+  })
+  return list
+}
+
+function scheduleLocationTipsSearch(rawKeyword: string) {
+  const keyword = String(rawKeyword || '').trim()
+  if (locationTipsTimer != null) {
+    clearTimeout(locationTipsTimer)
+    locationTipsTimer = null
+  }
+  if (keyword == '') {
+    locationTips.value = []
+    searchingLocationTips.value = false
+    return
+  }
+
+  const currentSeq = ++locationTipsRequestSeq
+  locationTipsTimer = setTimeout(async () => {
+    searchingLocationTips.value = true
+    try {
+      const list = await fetchLocationTips(keyword)
+      if (currentSeq != locationTipsRequestSeq) {
+        return
+      }
+      locationTips.value = list
+    } catch (error) {
+      console.error('[social-publish] fetch tips failed:', error)
+      if (currentSeq == locationTipsRequestSeq) {
+        locationTips.value = []
+      }
+    } finally {
+      if (currentSeq == locationTipsRequestSeq) {
+        searchingLocationTips.value = false
+      }
+    }
+  }, 260)
+}
+
+async function applyLocationByCoordinates(lat: number, lng: number, fallbackName: string): Promise<void> {
+  locationLat.value = lat
+  locationLng.value = lng
+  resolvingLocation.value = true
+  const amapAddress = await resolveAddressByAmap(lat, lng)
+  resolvingLocation.value = false
+
+  if (amapAddress != '') {
+    locationName.value = formatLocationDisplay(fallbackName, amapAddress)
+    skipNextLocationTipsSearch = true
+    locationKeyword.value = fallbackName
+    locationTips.value = []
+    return
+  }
+
+  locationName.value = ''
+  uni.showToast({ title: UI.noAddressForCoordinate, icon: 'none' })
+}
+
+function onPickLocationTip(tip: LocationTip) {
+  const title = String(tip.title || '').trim()
+  const address = String(tip.address || '').trim()
+  const lat = Number(tip.lat)
+  const lng = Number(tip.lng)
+  if (title == '' || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return
+  }
+
+  locationLat.value = lat
+  locationLng.value = lng
+  locationName.value = formatLocationDisplay(title, address)
+  skipNextLocationTipsSearch = true
+  locationKeyword.value = title
+  locationTips.value = []
+  searchingLocationTips.value = false
+}
+
+watch(
+  () => locationKeyword.value,
+  (next) => {
+    if (skipNextLocationTipsSearch) {
+      skipNextLocationTipsSearch = false
+      return
+    }
+    scheduleLocationTipsSearch(next)
+  }
+)
+
+async function chooseLocationByBrowser(): Promise<void> {
+  const nav = (globalThis as { navigator?: { geolocation?: { getCurrentPosition?: Function } } }).navigator
+  const geo = nav?.geolocation
+  const getCurrentPosition = geo?.getCurrentPosition
+  if (geo == null || typeof getCurrentPosition != 'function') {
+    uni.showToast({ title: UI.browserNotSupported, icon: 'none' })
+    return
+  }
+  if (!isSecureBrowserContext()) {
+    uni.showToast({ title: UI.browserSecureContextRequired, icon: 'none', duration: 2600 })
+    return
+  }
+
+  const permissionState = await getBrowserGeolocationPermissionState()
+  if (permissionState == 'denied') {
+    uni.showToast({ title: UI.browserPermissionDenied, icon: 'none', duration: 2400 })
+    return
+  }
+
+  resolvingLocation.value = true
+  try {
+    const position = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+      getCurrentPosition.call(
+        geo,
+        (result: { coords?: { latitude?: number; longitude?: number } }) => {
+          const latitude = Number(result?.coords?.latitude)
+          const longitude = Number(result?.coords?.longitude)
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            reject(new Error('Invalid browser location'))
+            return
+          }
+          resolve({ latitude, longitude })
+        },
+        (error: { code?: number; message?: string }) => {
+          const code = Number(error?.code || 0)
+          let message = UI.browserLocateFailed
+          if (code == 1) {
+            message = UI.browserPermissionDenied
+          } else if (code == 2) {
+            message = UI.browserPositionUnavailable
+          } else if (code == 3) {
+            message = UI.browserLocateTimeout
+          } else {
+            const rawMessage = String(error?.message || '').trim()
+            if (rawMessage != '') {
+              message = rawMessage
+            }
+          }
+          reject(new Error(message))
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
+    })
+    await applyLocationByCoordinates(position.latitude, position.longitude, UI.currentLocationLabel)
+  } catch (error) {
+    console.error('[social-publish] browser location failed:', error)
+    uni.showToast({ title: UI.browserLocateFailed, icon: 'none' })
+  } finally {
+    resolvingLocation.value = false
+  }
+}
+
+function onChooseLocation() {
+  if (submitting.value || resolvingLocation.value) {
+    return
+  }
+  if (isWebPlatform()) {
+    chooseLocationByBrowser()
+    return
+  }
+
+  uni.chooseLocation({
+    success: async (res) => {
+      const name = String(res.name || '').trim()
+      const localAddress = String(res.address || '').trim()
+      const lat = Number(res.latitude)
+      const lng = Number(res.longitude)
+
+      locationLat.value = Number.isFinite(lat) ? lat : null
+      locationLng.value = Number.isFinite(lng) ? lng : null
+
+      let finalAddress = localAddress
+      if (locationLat.value != null && locationLng.value != null) {
+        resolvingLocation.value = true
+        const amapAddress = await resolveAddressByAmap(locationLat.value, locationLng.value)
+        resolvingLocation.value = false
+        if (amapAddress != '') {
+          finalAddress = amapAddress
+        }
+      }
+
+      const displayText = formatLocationDisplay(name, finalAddress)
+      if (displayText != '') {
+        locationName.value = displayText
+        const keyword = name != '' ? name : finalAddress
+        if (keyword != '') {
+          skipNextLocationTipsSearch = true
+          locationKeyword.value = keyword
+        }
+        locationTips.value = []
+        return
+      }
+
+      locationName.value = ''
+      uni.showToast({ title: UI.invalidLocation, icon: 'none' })
+    },
+    fail: (error) => {
+      resolvingLocation.value = false
+      const message = String((error as { errMsg?: string })?.errMsg || '')
+      if (
+        message.includes('map provider not configured') ||
+        message.includes('uni-map-common') ||
+        message.includes('translate coordinate system fail')
+      ) {
+        chooseLocationByBrowser()
+        return
+      }
+      if (message.includes('cancel')) {
+        uni.showToast({ title: UI.chooseCanceled, icon: 'none' })
+      } else {
+        uni.showToast({ title: UI.chooseFailed, icon: 'none' })
+      }
+    }
+  })
+}
+
+function chooseImages() {
+  const remain = 3 - selectedImages.value.length
+  if (remain <= 0) {
+    return
+  }
+  uni.chooseImage({
+    count: remain,
+    success: (res) => {
+      const next = Array.isArray(res.tempFilePaths) ? res.tempFilePaths : []
+      const merged = [...selectedImages.value, ...next].slice(0, 3)
+      selectedImages.value = merged
+    }
+  })
+}
+
+function removeImage(index: number) {
+  if (index < 0 || index >= selectedImages.value.length) {
+    return
+  }
+  selectedImages.value.splice(index, 1)
+}
+
+function previewImages(index: number) {
+  if (index < 0 || index >= selectedImages.value.length) {
+    return
+  }
+  uni.previewImage({
+    current: selectedImages.value[index],
+    urls: selectedImages.value
+  })
 }
 
 async function onSubmit() {
   const title = formTitle.value.trim()
   const content = formContent.value.trim()
   const tags = normalizedTags.value
+  const location = locationName.value.trim()
+  const images = selectedImages.value
+  const persistableImages = images.filter((item) => isPersistableImageUrl(item))
 
-  if (title.length < 2) {
-    uni.showToast({ title: '标题至少 2 个字', icon: 'none' })
-    return
-  }
-  if (content.length < 2) {
-    uni.showToast({ title: '内容至少 2 个字', icon: 'none' })
-    return
-  }
-  if (tags.length == 0) {
-    uni.showToast({ title: '请至少选择 1 个标签', icon: 'none' })
-    return
+  if (!imageUploadWarned && images.length > 0 && persistableImages.length < images.length) {
+    imageUploadWarned = true
+    uni.showToast({ title: UI.localImageNotice, icon: 'none' })
   }
 
-  if (submitting.value) {
+  if (!canSubmit.value) {
+    if (title.length < TITLE_MIN_LENGTH) {
+      uni.showToast({ title: UI.titleTooShort, icon: 'none' })
+      return
+    }
+    if (content.length < CONTENT_MIN_LENGTH) {
+      uni.showToast({ title: UI.contentTooShort, icon: 'none' })
+      return
+    }
+    if (location == '') {
+      uni.showToast({ title: UI.locationRequired, icon: 'none' })
+      return
+    }
     return
   }
 
@@ -120,23 +689,26 @@ async function onSubmit() {
       data: {
         title,
         content,
-        tags
+        tags,
+        location_name: location,
+        images: persistableImages,
+        contact: contact.value.trim()
       }
     })
 
     if (res.success !== true) {
-      uni.showToast({ title: res.message || '发布失败', icon: 'none' })
+      uni.showToast({ title: res.message || UI.publishFailed, icon: 'none' })
       return
     }
 
-    uni.showToast({ title: '发布成功', icon: 'none' })
+    uni.showToast({ title: UI.publishSuccess, icon: 'none' })
     uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
     setTimeout(() => {
       uni.navigateBack()
     }, 1500)
   } catch (error) {
     console.error('[social-publish] failed:', error)
-    uni.showToast({ title: '发布失败，请稍后重试', icon: 'none' })
+    uni.showToast({ title: UI.publishRetry, icon: 'none' })
   } finally {
     submitting.value = false
   }
@@ -163,11 +735,24 @@ async function onSubmit() {
   font-weight: 900;
 }
 
+.label-row {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .label {
   margin-top: 14px;
   margin-bottom: 6px;
   font-size: 13px;
   color: #4b5563;
+}
+
+.counter {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 .input {
@@ -190,6 +775,68 @@ async function onSubmit() {
   color: #0f172a;
 }
 
+.location-picker {
+  margin-top: 8px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px dashed #94a3b8;
+  background-color: #f8fafc;
+  padding: 10px 12px;
+  justify-content: center;
+}
+
+.location-text {
+  font-size: 13px;
+  color: #334155;
+}
+
+.location-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.tips-loading {
+  margin-top: 8px;
+  margin-bottom: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background-color: #f8fafc;
+}
+
+.tips-loading-text {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tips-list {
+  margin-top: 8px;
+  margin-bottom: 2px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.tip-item {
+  padding: 10px 12px;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: #f1f5f9;
+}
+
+.tip-title {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.tip-address {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
 .tag-selector {
   flex-direction: row;
   flex-wrap: wrap;
@@ -206,7 +853,8 @@ async function onSubmit() {
 
 .tag-option-active {
   border-color: #16a34a;
-  background-color: #ecfdf3;
+  background-color: #dcfce7;
+  box-shadow: 0 6px 14px rgba(22, 163, 74, 0.12);
 }
 
 .tag-option-text {
@@ -219,6 +867,67 @@ async function onSubmit() {
   font-weight: 700;
 }
 
+.media-head {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.image-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.image-thumb-wrap {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.image-thumb {
+  width: 100%;
+  height: 100%;
+}
+
+.remove-btn {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(15, 23, 42, 0.65);
+}
+
+.remove-btn-text {
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 12px;
+}
+
+.add-image-btn {
+  width: 88px;
+  height: 88px;
+  border-radius: 10px;
+  border: 1px dashed #94a3b8;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8fafc;
+}
+
+.add-image-text {
+  font-size: 28px;
+  color: #64748b;
+}
+
 .submit-btn {
   margin-top: 18px;
   height: 46px;
@@ -226,6 +935,11 @@ async function onSubmit() {
   align-items: center;
   justify-content: center;
   background-color: #16a34a;
+}
+
+.submit-btn-disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .submit-btn-text {

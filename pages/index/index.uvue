@@ -81,6 +81,7 @@ import { ref, computed, onMounted } from 'vue'
 import CityCard from '../../components/CityCard.uvue'
 import type { CityItem } from '../../types/city'
 import rawCityData from '../../static/data/data.json'
+import { getApiBaseUrl } from '../../utils/request'
 
 type QuickFilterValue = 'all' | 'under500' | 'seaside' | 'mountain' | 'lake' | 'highspeed' | 'hospitalA' | 'verified'
 
@@ -94,7 +95,7 @@ const loading = ref(true)
 const currentFilter = ref<QuickFilterValue>('all')
 const keyword = ref('')
 const requesting = ref(false)
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = getApiBaseUrl()
 let latestRequestId = 0
 
 interface ApiCitiesResponse {

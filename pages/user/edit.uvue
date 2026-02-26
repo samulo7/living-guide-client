@@ -1,0 +1,418 @@
+<template>
+  <view class="page">
+    <view class="card">
+      <text class="title">{{ UI.pageTitle }}</text>
+
+      <view class="avatar-row">
+        <image v-if="avatar != ''" class="avatar" :src="avatar" mode="aspectFill"></image>
+        <view v-else class="avatar-fallback">
+          <text class="avatar-fallback-text">U</text>
+        </view>
+        <view class="avatar-btn" :class="{ 'avatar-btn-disabled': uploadingAvatar }" @click="onChooseAvatar">
+          <text class="avatar-btn-text">{{ uploadingAvatar ? UI.avatarUploading : UI.avatarUpload }}</text>
+        </view>
+      </view>
+
+      <view class="label-row">
+        <text class="label">{{ UI.usernameLabel }}</text>
+        <text class="count-text">{{ usernameCount }}/{{ USERNAME_MAX_LENGTH }}</text>
+      </view>
+      <input
+        class="input"
+        v-model="username"
+        :maxlength="USERNAME_MAX_LENGTH"
+        :placeholder="UI.usernamePlaceholder"
+      />
+
+      <view class="label-row">
+        <text class="label">{{ UI.taglineLabel }}</text>
+        <text class="count-text">{{ taglineCount }}/{{ TAGLINE_MAX_LENGTH }}</text>
+      </view>
+      <textarea
+        class="textarea"
+        v-model="tagline"
+        :maxlength="TAGLINE_MAX_LENGTH"
+        :placeholder="UI.taglinePlaceholder"
+      />
+
+      <view
+        class="submit-btn"
+        :class="{ 'submit-btn-disabled': !canSubmit }"
+        @click="onSubmit"
+      >
+        <text class="submit-btn-text">{{ submitting ? UI.submitting : UI.save }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { getApiBaseUrl, request } from '../../utils/request'
+
+interface ProfileResponse {
+  ok?: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface AvatarUploadResponse {
+  ok?: boolean
+  data?: {
+    avatar?: string
+  }
+  message?: string
+}
+
+interface ProfileInfo {
+  username: string
+  tagline: string
+  avatar: string
+}
+
+const UI = {
+  pageTitle: '\u7f16\u8f91\u8d44\u6599',
+  avatarUpload: '\u4e0a\u4f20\u5934\u50cf',
+  avatarUploading: '\u4e0a\u4f20\u4e2d...',
+  usernameLabel: '\u6635\u79f0',
+  usernamePlaceholder: '\u8f93\u5165\u6635\u79f0',
+  taglineLabel: '\u4e2a\u6027\u7b7e\u540d',
+  taglinePlaceholder: '\u8f93\u5165\u7b7e\u540d',
+  submitting: '\u4fdd\u5b58\u4e2d...',
+  save: '\u4fdd\u5b58\u8d44\u6599',
+  profileIncomplete: '\u8bf7\u5148\u5b8c\u5584\u8d44\u6599',
+  saveFailed: '\u4fdd\u5b58\u5931\u8d25',
+  saveSuccess: '\u4fdd\u5b58\u6210\u529f',
+  saveRetry: '\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
+  uploadSelectFailed: '\u672a\u9009\u62e9\u56fe\u7247',
+  uploadFailed: '\u5934\u50cf\u4e0a\u4f20\u5931\u8d25',
+  uploadSuccess: '\u5934\u50cf\u4e0a\u4f20\u6210\u529f'
+}
+
+const API_BASE_URL = getApiBaseUrl()
+const TOKEN_KEY = 'token'
+const USER_INFO_KEY = 'userInfo'
+const REFRESH_USER_PROFILE_EVENT = 'REFRESH_USER_PROFILE'
+const USERNAME_MAX_LENGTH = 100
+const TAGLINE_MAX_LENGTH = 255
+
+const username = ref('')
+const tagline = ref('')
+const avatar = ref('')
+const submitting = ref(false)
+const uploadingAvatar = ref(false)
+
+const usernameCount = computed(() => username.value.trim().length)
+const taglineCount = computed(() => tagline.value.trim().length)
+const canSubmit = computed(() => {
+  if (submitting.value || uploadingAvatar.value) {
+    return false
+  }
+  const nickname = username.value.trim()
+  return nickname != '' && nickname.length <= USERNAME_MAX_LENGTH && tagline.value.trim().length <= TAGLINE_MAX_LENGTH
+})
+
+function mapProfileRow(row: Record<string, unknown>): ProfileInfo {
+  return {
+    username: String(row.username ?? '').trim(),
+    tagline: String(row.tagline ?? '').trim(),
+    avatar: String(row.avatar ?? '').trim()
+  }
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function applyProfile(profile: ProfileInfo) {
+  username.value = profile.username
+  tagline.value = profile.tagline
+  avatar.value = profile.avatar
+}
+
+function readLocalProfile(): ProfileInfo | null {
+  const raw = uni.getStorageSync(USER_INFO_KEY)
+  if (raw == null || typeof raw != 'object') {
+    return null
+  }
+  return mapProfileRow(raw as Record<string, unknown>)
+}
+
+function saveLocalProfile(profile: ProfileInfo) {
+  uni.setStorageSync(USER_INFO_KEY, profile)
+}
+
+function buildAuthHeader(): UTSJSONObject {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  const header = new UTSJSONObject()
+  if (token != '') {
+    header.set('Authorization', 'Bearer ' + token)
+  }
+  return header
+}
+
+async function fetchProfile() {
+  const payload = await request<ProfileResponse>({
+    url: '/api/user/profile',
+    method: 'GET'
+  })
+  if (payload.ok !== true || payload.data == null) {
+    throw new Error(payload.message || 'profile is empty')
+  }
+  const profile = mapProfileRow(payload.data)
+  applyProfile(profile)
+  saveLocalProfile(profile)
+}
+
+async function uploadAvatarFile(filePath: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    uni.uploadFile({
+      url: API_BASE_URL + '/api/user/avatar/upload',
+      filePath,
+      name: 'file',
+      header: buildAuthHeader(),
+      success: (res) => {
+        const statusCode = Number(res.statusCode || 0)
+        if (statusCode < 200 || statusCode >= 300) {
+          reject(new Error('upload failed: ' + statusCode))
+          return
+        }
+        const payload = parseApiPayload<AvatarUploadResponse>(res.data)
+        if (payload == null || payload.ok !== true) {
+          reject(new Error(payload?.message || 'upload response invalid'))
+          return
+        }
+        const url = String(payload.data?.avatar || '').trim()
+        if (url == '') {
+          reject(new Error('avatar url is empty'))
+          return
+        }
+        resolve(url)
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+function onChooseAvatar() {
+  if (uploadingAvatar.value || submitting.value) {
+    return
+  }
+  uni.chooseImage({
+    count: 1,
+    success: async (res) => {
+      const nextPath = Array.isArray(res.tempFilePaths) && res.tempFilePaths.length > 0 ? String(res.tempFilePaths[0] || '').trim() : ''
+      if (nextPath == '') {
+        uni.showToast({ title: UI.uploadSelectFailed, icon: 'none' })
+        return
+      }
+
+      const previous = avatar.value
+      avatar.value = nextPath
+      uploadingAvatar.value = true
+      try {
+        const uploadedUrl = await uploadAvatarFile(nextPath)
+        avatar.value = uploadedUrl
+        uni.showToast({ title: UI.uploadSuccess, icon: 'none' })
+      } catch (error) {
+        avatar.value = previous
+        console.error('[user-edit] upload avatar failed:', error)
+        uni.showToast({ title: UI.uploadFailed, icon: 'none' })
+      } finally {
+        uploadingAvatar.value = false
+      }
+    }
+  })
+}
+
+async function onSubmit() {
+  if (!canSubmit.value) {
+    uni.showToast({ title: UI.profileIncomplete, icon: 'none' })
+    return
+  }
+
+  submitting.value = true
+  try {
+    const payload = await request<ProfileResponse>({
+      url: '/api/user/profile',
+      method: 'PUT',
+      data: {
+        username: username.value.trim(),
+        tagline: tagline.value.trim(),
+        avatar: avatar.value.trim()
+      }
+    })
+
+    if (payload.ok !== true || payload.data == null) {
+      uni.showToast({ title: payload.message || UI.saveFailed, icon: 'none' })
+      return
+    }
+
+    const profile = mapProfileRow(payload.data)
+    applyProfile(profile)
+    saveLocalProfile(profile)
+    uni.$emit(REFRESH_USER_PROFILE_EVENT)
+    uni.showToast({ title: UI.saveSuccess, icon: 'none' })
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 300)
+  } catch (error) {
+    console.error('[user-edit] update profile failed:', error)
+    uni.showToast({ title: UI.saveRetry, icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
+}
+
+onLoad(async () => {
+  const localProfile = readLocalProfile()
+  if (localProfile != null) {
+    applyProfile(localProfile)
+  }
+  try {
+    await fetchProfile()
+  } catch (error) {
+    console.error('[user-edit] load profile failed:', error)
+  }
+})
+</script>
+
+<style scoped>
+.page {
+  min-height: 100vh;
+  background-color: #f5f7f6;
+  padding: 18px 14px;
+}
+
+.card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.title {
+  font-size: 24px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.avatar-row {
+  margin-top: 14px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background-color: #f3f4f6;
+}
+
+.avatar-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  align-items: center;
+  justify-content: center;
+  background-color: #e5e7eb;
+}
+
+.avatar-fallback-text {
+  font-size: 24px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.avatar-btn {
+  margin-left: 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  padding: 8px 12px;
+}
+
+.avatar-btn-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.avatar-btn-text {
+  font-size: 12px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.label-row {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.count-text {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.input {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ea;
+  background-color: #f8fafc;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.textarea {
+  min-height: 110px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ea;
+  background-color: #f8fafc;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.submit-btn {
+  margin-top: 18px;
+  height: 46px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: #16a34a;
+}
+
+.submit-btn-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.submit-btn-text {
+  font-size: 16px;
+  color: #ffffff;
+  font-weight: 800;
+}
+</style>

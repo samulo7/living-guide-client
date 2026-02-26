@@ -11,6 +11,7 @@ const houseRoutes = require('./src/routes/house')
 const jobRoutes = require('./src/routes/job')
 const companionRoutes = require('./src/routes/companion')
 const socialRoutes = require('./src/routes/social')
+const mapRoutes = require('./src/routes/map')
 const { pingDb } = require('./src/config/db')
 const { repairDbSchema } = require('./src/config/repairDbSchema')
 
@@ -87,6 +88,7 @@ app.use(cors())
 app.use(express.json())
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.setHeader('Charset', 'utf-8')
   next()
 })
 
@@ -104,6 +106,7 @@ app.use('/api/houses', houseRoutes)
 app.use('/api/jobs', jobRoutes)
 app.use('/api/companions', companionRoutes)
 app.use('/api/social', socialRoutes)
+app.use('/api/map', mapRoutes)
 
 async function bootstrap() {
   try {

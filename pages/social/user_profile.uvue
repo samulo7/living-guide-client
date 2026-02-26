@@ -1,0 +1,346 @@
+<template>
+  <view class="page">
+    <scroll-view class="content" direction="vertical">
+      <view class="hero">
+        <image v-if="profile.avatar != ''" class="avatar" :src="profile.avatar" mode="aspectFill"></image>
+        <view v-else class="avatar-fallback">
+          <text class="avatar-fallback-text">U</text>
+        </view>
+        <text class="name">{{ profile.username }}</text>
+        <text v-if="profile.tagline != ''" class="tagline">{{ profile.tagline }}</text>
+      </view>
+
+      <view class="section-head">
+        <text class="section-title">最近发布</text>
+      </view>
+
+      <view v-if="loading" class="state-wrap">
+        <text class="state-text">正在加载...</text>
+      </view>
+
+      <view v-else-if="posts.length == 0" class="state-wrap">
+        <text class="state-text">暂无帖子</text>
+      </view>
+
+      <view v-else class="card-list">
+        <view class="post-card" v-for="post in posts" :key="post.id" @click="goDetail(post.id)">
+          <image v-if="post.images.length > 0" class="cover" :src="post.images[0]" mode="aspectFill"></image>
+          <view class="post-main">
+            <text class="post-title">{{ post.title }}</text>
+            <text class="post-meta">位置 {{ post.location_name || '未知' }} | {{ formatDate(post.created_at) }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 18px;"></view>
+    </scroll-view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { getApiBaseUrl } from '../../utils/request'
+
+interface UserProfileResponse {
+  ok?: boolean
+  data?: {
+    user?: Record<string, unknown>
+    posts?: Record<string, unknown>[]
+  }
+  message?: string
+}
+
+interface ProfileInfo {
+  id: string
+  username: string
+  avatar: string
+  tagline: string
+}
+
+interface PostItem {
+  id: string
+  title: string
+  location_name: string
+  images: string[]
+  created_at: string
+}
+
+const API_BASE_URL = getApiBaseUrl()
+
+const loading = ref(true)
+const profile = ref<ProfileInfo>({
+  id: '',
+  username: '\u7528\u6237',
+  avatar: '',
+  tagline: ''
+})
+const posts = ref<PostItem[]>([])
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function parseStringArray(rawValue: unknown): string[] {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((item) => String(item || '').trim()).filter((item) => item != '')
+  }
+  const text = String(rawValue || '').trim()
+  if (text == '') {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || '').trim()).filter((item) => item != '')
+    }
+  } catch (error) {
+    // ignore parse error
+  }
+  return text.split(/[,\uff0c\u3001|/]+/).map((item) => item.trim()).filter((item) => item != '')
+}
+
+function isDisplayableImageUrl(url: string): boolean {
+  const text = String(url || '').trim().toLowerCase()
+  if (text == '') {
+    return false
+  }
+  if (text.startsWith('blob:') || text.startsWith('file:') || text.startsWith('wxfile:') || text.startsWith('data:')) {
+    return false
+  }
+  return text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/')
+}
+
+function mapProfile(row: Record<string, unknown>): ProfileInfo {
+  const avatar = String(row.avatar ?? '').trim()
+  return {
+    id: String(row.id ?? ''),
+    username: String(row.username ?? '').trim() || '\u7528\u6237',
+    avatar: isDisplayableImageUrl(avatar) ? avatar : '',
+    tagline: String(row.tagline ?? '').trim()
+  }
+}
+
+function mapPost(row: Record<string, unknown>): PostItem {
+  return {
+    id: String(row.id ?? ''),
+    title: String(row.title ?? '').trim(),
+    location_name: String(row.location_name ?? '').trim(),
+    images: parseStringArray(row.images).filter((url) => isDisplayableImageUrl(url)),
+    created_at: String(row.created_at ?? '')
+  }
+}
+
+function parseDateTime(raw: unknown): Date | null {
+  const text = String(raw || '').trim()
+  if (text == '') {
+    return null
+  }
+
+  const normalized = text.replace('T', ' ').replace(/\.\d{3}Z$/, '').replace(/Z$/, '')
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (match != null) {
+    const y = Number(match[1])
+    const m = Number(match[2])
+    const d = Number(match[3])
+    const hh = Number(match[4] || 0)
+    const mm = Number(match[5] || 0)
+    const ss = Number(match[6] || 0)
+    const local = new Date(y, m - 1, d, hh, mm, ss)
+    if (!Number.isNaN(local.getTime())) {
+      return local
+    }
+  }
+
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return date
+}
+
+function formatDate(value: string): string {
+  const text = String(value || '').trim()
+  if (text == '') {
+    return '--'
+  }
+  const date = parseDateTime(text)
+  if (date == null) {
+    return text
+  }
+  const y = String(date.getFullYear())
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return y + '-' + m + '-' + d
+}
+
+function goDetail(id: string) {
+  const postId = String(id || '').trim()
+  if (postId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/companion_detail?id=' + encodeURIComponent(postId) })
+}
+
+async function fetchUserProfile(userId: string) {
+  return new Promise<{ profile: ProfileInfo; posts: PostItem[] }>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/social/user/' + encodeURIComponent(userId),
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<UserProfileResponse>(res.data)
+        if (payload == null || payload.ok != true || payload.data == null || payload.data.user == null) {
+          reject(payload?.message ?? 'profile is empty')
+          return
+        }
+        resolve({
+          profile: mapProfile(payload.data.user),
+          posts: Array.isArray(payload.data.posts) ? payload.data.posts.map((item) => mapPost(item)) : []
+        })
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+onLoad(async (options) => {
+  const userId = String(options?.user_id || '').trim()
+  if (userId == '') {
+    uni.showToast({ title: '\u7528\u6237 ID \u65e0\u6548', icon: 'none' })
+    return
+  }
+
+  loading.value = true
+  try {
+    const data = await fetchUserProfile(userId)
+    profile.value = data.profile
+    posts.value = data.posts
+  } catch (error) {
+    console.error('[social-user-profile] load failed:', error)
+    uni.showToast({ title: '\u52a0\u8f7d\u5931\u8d25', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f6f6f3;
+}
+
+.content {
+  height: 100%;
+  padding: 0 14px;
+}
+
+.hero {
+  margin-top: 14px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  padding: 16px;
+  align-items: center;
+}
+
+.avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 38px;
+}
+
+.avatar-fallback {
+  width: 76px;
+  height: 76px;
+  border-radius: 38px;
+  background-color: #e5e7eb;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-fallback-text {
+  font-size: 28px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.name {
+  margin-top: 8px;
+  font-size: 22px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.tagline {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.section-head {
+  margin-top: 14px;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 18px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.state-wrap {
+  padding-top: 80px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+.post-card {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background-color: #ffffff;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.08);
+}
+
+.cover {
+  width: 100%;
+  height: 146px;
+}
+
+.post-main {
+  padding: 12px;
+}
+
+.post-title {
+  font-size: 16px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.post-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+</style>

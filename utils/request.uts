@@ -1,10 +1,45 @@
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL_STORAGE_KEY = 'api_base_url'
+const DEFAULT_API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = resolveApiBaseUrl()
 const TOKEN_KEY = 'token'
 const LEGACY_LOGIN_KEY = 'isLogged'
 const USER_INFO_KEY = 'userInfo'
 
 let requestInterceptorInstalled = false
 let redirectingToLogin = false
+
+function trimTrailingSlash(value: string): string {
+  const text = String(value || '').trim()
+  if (text.endsWith('/')) {
+    return text.slice(0, text.length - 1)
+  }
+  return text
+}
+
+function isHttpBaseUrl(value: string): boolean {
+  const text = String(value || '').trim().toLowerCase()
+  return text.startsWith('http://') || text.startsWith('https://')
+}
+
+function resolveApiBaseUrl(): string {
+  const custom = trimTrailingSlash(String(uni.getStorageSync(API_BASE_URL_STORAGE_KEY) || ''))
+  if (custom != '' && isHttpBaseUrl(custom)) {
+    return custom
+  }
+
+  try {
+    const globalRef = globalThis as { location?: { protocol?: string; hostname?: string } }
+    const host = String(globalRef.location?.hostname || '').trim()
+    if (host != '') {
+      const protocol = String(globalRef.location?.protocol || '').toLowerCase() == 'https:' ? 'https' : 'http'
+      return `${protocol}://${host}:3000`
+    }
+  } catch (error) {
+    // ignore runtime env mismatch and fallback to localhost
+  }
+
+  return DEFAULT_API_BASE_URL
+}
 
 function normalizeUrl(url: string): string {
   const text = String(url || '').trim()
@@ -138,4 +173,8 @@ export function request<T = Record<string, any>>(options: Record<string, any>): 
       }
     })
   })
+}
+
+export function getApiBaseUrl(): string {
+  return API_BASE_URL
 }

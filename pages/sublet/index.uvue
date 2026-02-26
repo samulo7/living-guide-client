@@ -75,7 +75,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { request } from '../../utils/request'
+import { onShow } from '@dcloudio/uni-app'
+import { getApiBaseUrl, request } from '../../utils/request'
 
 interface HouseListResponse {
   ok: boolean
@@ -110,7 +111,7 @@ interface FavoriteResponse {
   message?: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = getApiBaseUrl()
 const TOKEN_KEY = 'token'
 
 const loading = ref(true)
@@ -293,7 +294,12 @@ async function onFavorite(houseId: string) {
         [id]: true
       }
     } else {
-      const nextMap = { ...favoriteMap.value }
+      const nextMap: Record<string, boolean> = {}
+      Object.keys(favoriteMap.value).forEach((key) => {
+        if (key != id && favoriteMap.value[key] === true) {
+          nextMap[key] = true
+        }
+      })
       delete nextMap[id]
       favoriteMap.value = nextMap
     }

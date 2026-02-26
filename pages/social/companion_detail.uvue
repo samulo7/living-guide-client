@@ -1,0 +1,486 @@
+<template>
+  <view class="page">
+    <scroll-view class="scroll-content" direction="vertical">
+      <view v-if="post.images.length > 0" class="hero">
+        <swiper class="hero-swiper" circular indicator-dots autoplay>
+          <swiper-item v-for="(img, index) in post.images" :key="img + '-' + index">
+            <image class="hero-image" :src="img" mode="aspectFit" @click="previewImage(index)"></image>
+          </swiper-item>
+        </swiper>
+      </view>
+
+      <view class="content-card" :class="{ 'content-card-no-image': post.images.length == 0 }">
+        <view class="author-card">
+          <image
+            v-if="post.avatar != ''"
+            class="avatar"
+            :src="post.avatar"
+            mode="aspectFill"
+            @click="goUserProfile"
+          ></image>
+          <view v-else class="avatar-fallback" @click="goUserProfile">
+            <text class="avatar-fallback-icon">U</text>
+          </view>
+          <view class="author-main">
+            <text class="nickname">{{ post.username }}</text>
+            <text v-if="post.tagline != ''" class="tagline">{{ post.tagline }}</text>
+            <text class="meta">{{ metaText }}</text>
+          </view>
+        </view>
+
+        <text class="title">{{ post.title }}</text>
+        <text class="content">{{ post.content }}</text>
+
+        <view class="tag-row" v-if="post.tags.length > 0">
+          <text class="tag-chip" v-for="(tag, index) in post.tags" :key="post.id + '-' + index">{{ tag }}</text>
+        </view>
+      </view>
+
+      <view style="height: 110px;"></view>
+    </scroll-view>
+
+    <view class="action-bar">
+      <view class="like-btn" :class="{ 'like-btn-active': liked }" @click="toggleLike">
+        <text class="like-icon">{{ liked ? '已赞' : '点赞' }}</text>
+        <text class="like-text">{{ likeCount }}</text>
+      </view>
+      <view class="contact-btn" @click="onContact">
+        <text class="contact-text">联系发布者</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { getApiBaseUrl } from '../../utils/request'
+
+interface SocialDetailResponse {
+  ok?: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface CompanionDetail {
+  id: string
+  user_id: string
+  username: string
+  avatar: string
+  tagline: string
+  location_name: string
+  title: string
+  content: string
+  tags: string[]
+  images: string[]
+  contact: string
+  created_at_text: string
+}
+
+const API_BASE_URL = getApiBaseUrl()
+const post = ref<CompanionDetail>({
+  id: '',
+  user_id: '',
+  username: '\u533f\u540d\u7528\u6237',
+  avatar: '',
+  tagline: '',
+  location_name: '',
+  title: '',
+  content: '',
+  tags: [],
+  images: [],
+  contact: '',
+  created_at_text: '--'
+})
+
+const liked = ref(false)
+const likeCount = ref(0)
+const likeActionLocked = ref(false)
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function parseStringArray(rawValue: unknown): string[] {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((item) => String(item || '').trim()).filter((item) => item != '')
+  }
+  const text = String(rawValue || '').trim()
+  if (text == '') {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || '').trim()).filter((item) => item != '')
+    }
+  } catch (error) {
+    // ignore parse error and fallback split
+  }
+  return text.split(/[,\uff0c\u3001|/]+/).map((item) => item.trim()).filter((item) => item != '')
+}
+
+function isDisplayableImageUrl(url: string): boolean {
+  const text = String(url || '').trim().toLowerCase()
+  if (text == '') {
+    return false
+  }
+  if (text.startsWith('blob:') || text.startsWith('file:') || text.startsWith('wxfile:') || text.startsWith('data:')) {
+    return false
+  }
+  return text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/')
+}
+
+function parseDateTime(raw: unknown): Date | null {
+  const text = String(raw || '').trim()
+  if (text == '') {
+    return null
+  }
+
+  const normalized = text.replace('T', ' ').replace(/\.\d{3}Z$/, '').replace(/Z$/, '')
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (match != null) {
+    const y = Number(match[1])
+    const m = Number(match[2])
+    const d = Number(match[3])
+    const hh = Number(match[4] || 0)
+    const mm = Number(match[5] || 0)
+    const ss = Number(match[6] || 0)
+    const local = new Date(y, m - 1, d, hh, mm, ss)
+    if (!Number.isNaN(local.getTime())) {
+      return local
+    }
+  }
+
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return date
+}
+
+function formatCreatedAt(raw: unknown): string {
+  const text = String(raw || '').trim()
+  if (text == '') {
+    return '--'
+  }
+  const date = parseDateTime(text)
+  if (date == null) {
+    return text
+  }
+
+  const y = String(date.getFullYear())
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  return y + '-' + m + '-' + d + ' ' + hh + ':' + mm
+}
+
+function mapDetailRow(row: Record<string, unknown>): CompanionDetail {
+  const avatar = String(row.avatar ?? '').trim()
+  const images = parseStringArray(row.images).filter((url) => isDisplayableImageUrl(url))
+  return {
+    id: String(row.id ?? ''),
+    user_id: String(row.user_id ?? ''),
+    username: String(row.username ?? '').trim() || '\u533f\u540d\u7528\u6237',
+    avatar: isDisplayableImageUrl(avatar) ? avatar : '',
+    tagline: String(row.tagline ?? '').trim(),
+    location_name: String(row.location_name ?? row.city_name ?? '').trim(),
+    title: String(row.title ?? '').trim(),
+    content: String(row.content ?? '').trim(),
+    tags: parseStringArray(row.tags),
+    images: images,
+    contact: String(row.contact ?? '').trim(),
+    created_at_text: formatCreatedAt(row.created_at)
+  }
+}
+
+async function fetchDetail(postId: string): Promise<CompanionDetail> {
+  return new Promise<CompanionDetail>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/social/detail/' + encodeURIComponent(postId),
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode != 200) {
+          reject('request failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<SocialDetailResponse>(res.data)
+        if (payload == null || payload.ok != true || payload.data == null) {
+          reject(payload?.message ?? 'detail is empty')
+          return
+        }
+        resolve(mapDetailRow(payload.data))
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+const metaText = computed(() => {
+  const location = post.value.location_name != '' ? post.value.location_name : '\u4f4d\u7f6e\u672a\u77e5'
+  return '\u4f4d\u7f6e ' + location + ' | ' + post.value.created_at_text
+})
+
+function previewImage(index: number) {
+  if (index < 0 || index >= post.value.images.length) {
+    return
+  }
+  uni.previewImage({
+    current: post.value.images[index],
+    urls: post.value.images
+  })
+}
+
+function toggleLike() {
+  if (likeActionLocked.value) {
+    return
+  }
+  likeActionLocked.value = true
+  liked.value = !liked.value
+  likeCount.value = Math.max(0, likeCount.value + (liked.value ? 1 : -1))
+  setTimeout(() => {
+    likeActionLocked.value = false
+  }, 500)
+}
+
+function onContact() {
+  if (post.value.contact == '') {
+    uni.showToast({ title: '\u53d1\u5e03\u8005\u672a\u586b\u5199\u8054\u7cfb\u65b9\u5f0f', icon: 'none' })
+    return
+  }
+  uni.showModal({
+    title: '\u8054\u7cfb\u65b9\u5f0f',
+    content: post.value.contact,
+    confirmText: '\u590d\u5236',
+    cancelText: '\u53d6\u6d88',
+    success: (res) => {
+      if (!res.confirm) {
+        return
+      }
+      uni.setClipboardData({
+        data: post.value.contact,
+        success: () => {
+          uni.showToast({ title: '\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f', icon: 'none' })
+        }
+      })
+    }
+  })
+}
+
+function goUserProfile() {
+  const userId = String(post.value.user_id || '').trim()
+  if (userId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/user_profile?user_id=' + encodeURIComponent(userId) })
+}
+
+onLoad(async (options) => {
+  const id = String(options?.id || '').trim()
+  if (id == '') {
+    uni.showToast({ title: '\u5e16\u5b50 ID \u65e0\u6548', icon: 'none' })
+    return
+  }
+
+  try {
+    const data = await fetchDetail(id)
+    post.value = data
+    likeCount.value = data.tags.length
+  } catch (error) {
+    console.error('[companion-detail] load failed:', error)
+    uni.showToast({ title: '\u52a0\u8f7d\u8be6\u60c5\u5931\u8d25', icon: 'none' })
+  }
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f3f5f8;
+}
+
+.scroll-content {
+  height: 100%;
+}
+
+.hero {
+  height: 290px;
+}
+
+.hero-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  background-color: #0f172a;
+}
+
+.content-card {
+  margin: -20px 14px 0;
+  padding: 14px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.content-card-no-image {
+  margin-top: 14px;
+}
+
+.author-card {
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+}
+
+.avatar-fallback {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background-color: #e5e7eb;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-fallback-icon {
+  font-size: 22px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.author-main {
+  flex: 1;
+  margin-left: 10px;
+}
+
+.nickname {
+  font-size: 16px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.tagline {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.title {
+  margin-top: 12px;
+  font-size: 22px;
+  line-height: 30px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.content {
+  margin-top: 10px;
+  font-size: 15px;
+  line-height: 24px;
+  color: #475569;
+}
+
+.tag-row {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: #14532d;
+  border-radius: 999px;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 4px 9px;
+}
+
+.action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 86px;
+  background-color: rgba(255, 255, 255, 0.98);
+  border-top: 1px solid #ebeef3;
+  padding: 10px 16px 20px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.like-btn {
+  width: 94px;
+  height: 46px;
+  border-radius: 14px;
+  background-color: #f8fafc;
+  border: 1px solid #e5e7eb;
+  justify-content: center;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.like-btn-active {
+  background-color: #fff3f2;
+  border-color: #ff6b6b;
+}
+
+.like-icon {
+  font-size: 14px;
+  color: #ef4444;
+}
+
+.like-text {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.contact-btn {
+  flex: 1;
+  height: 46px;
+  border-radius: 14px;
+  justify-content: center;
+  align-items: center;
+  background-image: linear-gradient(135deg, #ff6a3d 0%, #ff3d57 100%);
+  box-shadow: 0 10px 18px rgba(255, 77, 79, 0.28);
+}
+
+.contact-text {
+  font-size: 15px;
+  color: #ffffff;
+  font-weight: 800;
+}
+</style>

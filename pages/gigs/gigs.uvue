@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { getApiBaseUrl } from '../../utils/request'
 
 interface JobListResponse {
   ok: boolean
@@ -75,7 +76,7 @@ interface JobItem {
   description: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = getApiBaseUrl()
 
 const loading = ref(true)
 const jobList = ref<JobItem[]>([])

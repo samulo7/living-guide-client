@@ -32,6 +32,66 @@ Response `200`:
 }
 ```
 
+### `GET /api/map/regeo`
+
+Reverse geocode by Gaode (Amap) using server-side key.
+
+Query params:
+
+- `lat`: latitude, e.g. `45.7569`
+- `lng`: longitude, e.g. `126.6425`
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "formatted_address": "黑龙江省哈尔滨市道里区中央大街...",
+    "province": "黑龙江省",
+    "city": "哈尔滨市",
+    "district": "道里区",
+    "township": "",
+    "adcode": "230102",
+    "citycode": "0451"
+  }
+}
+```
+
+Common errors:
+
+- `400` invalid lat/lng
+- `503` missing `AMAP_WEB_KEY` on server
+- `502` Gaode API failed or timeout
+- `422` Gaode returned empty address for current coordinate
+
+### `GET /api/map/inputtips`
+
+Location keyword suggestions by Gaode (Amap), used by social publish page.
+
+Query params:
+
+- `keyword` (required): location keyword
+- `city` (optional): city name/code
+- `page_size` (optional): 1~20, default `10`
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "title": "人民广场",
+      "address": "黄浦区 人民大道",
+      "adcode": "310101",
+      "lat": 31.233734,
+      "lng": 121.475024
+    }
+  ]
+}
+```
+
 ### `POST /api/auth/register`
 
 Register a new user.

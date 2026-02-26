@@ -1,67 +1,81 @@
 {
-	"name": "躺平指南",
-	"appid": "__UNI__1F191C8",
-	"description": "帮助你躺平反内卷生活",
-	"versionName": "1.0.0",
-	"versionCode": "100",
-	"uni-app-x": {},
-	"quickapp": {},
-	"mp-weixin": {
-		"appid": "wx552da22c2243ba26",
-		"setting": {
-			"urlCheck": false
-		},
-		"usingComponents": true
-	},
-	"mp-alipay": {
-		"usingComponents": true
-	},
-	"mp-baidu": {
-		"usingComponents": true
-	},
-	"mp-toutiao": {
-		"usingComponents": true
-	},
-	"uniStatistics": {
-		"enable": false
-	},
-	"vueVersion": "3",
-	"app": {
-		"distribute": {
-			"icons": {
-				"android": {
-					"hdpi": "",
-					"xhdpi": "",
-					"xxhdpi": "",
-					"xxxhdpi": ""
-				}
-			}
-		}
-	},
-	"app-android": {
-		"distribute": {
-			"modules": {},
-			"icons": {
-				"hdpi": "",
-				"xhdpi": "",
-				"xxhdpi": "",
-				"xxxhdpi": ""
-			},
-			"splashScreens": {
-				"default": {}
-			}
-		}
-	},
-	"app-ios": {
-		"distribute": {
-			"modules": {},
-			"icons": {},
-			"splashScreens": {}
-		}
-	},
-	"web": {
-		"router": {
-			"mode": ""
-		}
-	}
+  "name": "\u8eba\u5e73\u6307\u5357",
+  "appid": "__UNI__1F191C8",
+  "description": "\u5e2e\u52a9\u4f60\u8eba\u5e73\u53cd\u5185\u5377\u751f\u6d3b",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "uni-app-x": {},
+  "quickapp": {},
+  "mp-weixin": {
+    "appid": "wx552da22c2243ba26",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  },
+  "mp-alipay": {
+    "usingComponents": true
+  },
+  "mp-baidu": {
+    "usingComponents": true
+  },
+  "mp-toutiao": {
+    "usingComponents": true
+  },
+  "uniStatistics": {
+    "enable": false
+  },
+  "sdkConfigs": {
+    "maps": {
+      "amap": {
+        "key": "56ab408890a598cb031e5ca5a9f002d7"
+      }
+    }
+  },
+  "vueVersion": "3",
+  "app": {
+    "distribute": {
+      "icons": {
+        "android": {
+          "hdpi": "",
+          "xhdpi": "",
+          "xxhdpi": "",
+          "xxxhdpi": ""
+        }
+      }
+    }
+  },
+  "app-android": {
+    "distribute": {
+      "modules": {},
+      "icons": {
+        "hdpi": "",
+        "xhdpi": "",
+        "xxhdpi": "",
+        "xxxhdpi": ""
+      },
+      "splashScreens": {
+        "default": {}
+      }
+    }
+  },
+  "app-ios": {
+    "distribute": {
+      "modules": {},
+      "icons": {},
+      "splashScreens": {}
+    }
+  },
+  "web": {
+    "router": {
+      "mode": ""
+    },
+    "sdkConfigs": {
+      "maps": {
+        "amap": {
+          "key": "56ab408890a598cb031e5ca5a9f002d7"
+        }
+      }
+    }
+  }
 }

@@ -29,6 +29,7 @@ async function repairUsersTable() {
 
   columns = await ensureColumn('users', 'username', 'ALTER TABLE users ADD COLUMN username VARCHAR(100) NULL')
   columns = await ensureColumn('users', 'tagline', "ALTER TABLE users ADD COLUMN tagline VARCHAR(255) NULL")
+  columns = await ensureColumn('users', 'avatar', "ALTER TABLE users ADD COLUMN avatar VARCHAR(500) NOT NULL DEFAULT ''")
   columns = await ensureColumn(
     'users',
     'balance',
@@ -182,9 +183,12 @@ async function ensureCompanionsTable() {
       nickname VARCHAR(80) NOT NULL,
       avatar VARCHAR(500) NOT NULL DEFAULT '',
       city_name VARCHAR(120) NOT NULL DEFAULT '',
+      location_name VARCHAR(200) NOT NULL DEFAULT '',
       title VARCHAR(160) NOT NULL,
       content TEXT NOT NULL,
       tags VARCHAR(255) NOT NULL DEFAULT '',
+      images TEXT NULL,
+      contact VARCHAR(120) NOT NULL DEFAULT '',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
@@ -252,9 +256,12 @@ async function repairCompanionsTable() {
   await ensureColumn('companions', 'nickname', "ALTER TABLE companions ADD COLUMN nickname VARCHAR(80) NOT NULL DEFAULT '' AFTER id")
   await ensureColumn('companions', 'avatar', "ALTER TABLE companions ADD COLUMN avatar VARCHAR(500) NOT NULL DEFAULT '' AFTER nickname")
   await ensureColumn('companions', 'city_name', "ALTER TABLE companions ADD COLUMN city_name VARCHAR(120) NOT NULL DEFAULT '' AFTER avatar")
-  await ensureColumn('companions', 'title', "ALTER TABLE companions ADD COLUMN title VARCHAR(160) NOT NULL DEFAULT '' AFTER city_name")
+  await ensureColumn('companions', 'location_name', "ALTER TABLE companions ADD COLUMN location_name VARCHAR(200) NOT NULL DEFAULT '' AFTER city_name")
+  await ensureColumn('companions', 'title', "ALTER TABLE companions ADD COLUMN title VARCHAR(160) NOT NULL DEFAULT '' AFTER location_name")
   await ensureColumn('companions', 'content', "ALTER TABLE companions ADD COLUMN content TEXT NOT NULL AFTER title")
   await ensureColumn('companions', 'tags', "ALTER TABLE companions ADD COLUMN tags VARCHAR(255) NOT NULL DEFAULT '' AFTER content")
+  await ensureColumn('companions', 'images', 'ALTER TABLE companions ADD COLUMN images TEXT NULL AFTER tags')
+  await ensureColumn('companions', 'contact', "ALTER TABLE companions ADD COLUMN contact VARCHAR(120) NOT NULL DEFAULT '' AFTER images")
   await ensureColumn(
     'companions',
     'updated_at',

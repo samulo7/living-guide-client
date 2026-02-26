@@ -82,6 +82,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { request } from '../../utils/request'
 
 interface ProfileResponse {
@@ -122,6 +123,7 @@ interface HouseItem {
 const TOKEN_KEY = 'token'
 const USER_INFO_KEY = 'userInfo'
 const REFRESH_FAVORITES_EVENT = 'REFRESH_FAVORITES'
+const REFRESH_USER_PROFILE_EVENT = 'REFRESH_USER_PROFILE'
 
 const isLogged = ref(false)
 const userInfo = ref<ProfileInfo | null>(null)
@@ -324,10 +326,11 @@ function onLogout() {
 }
 
 function onProfileCardClick() {
-  if (isLogged.value) {
+  if (!isLogged.value) {
+    uni.navigateTo({ url: '/pages/login/login' })
     return
   }
-  uni.navigateTo({ url: '/pages/login/login' })
+  uni.navigateTo({ url: '/pages/user/edit' })
 }
 
 async function refreshUserCenter() {
@@ -363,9 +366,26 @@ async function onRefreshFavorites() {
   }
 }
 
+async function onRefreshUserProfile() {
+  if (!hasToken()) {
+    return
+  }
+  const cached = readUserInfo()
+  if (cached != null) {
+    userInfo.value = cached
+  }
+  try {
+    await fetchProfile()
+  } catch (error) {
+    console.error('[user] refresh profile failed:', error)
+  }
+}
+
 onLoad(async () => {
   uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
   uni.$on(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$off(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
+  uni.$on(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
 
   if (!hasToken()) {
     resetGuestState()
@@ -379,11 +399,13 @@ onShow(() => {
     resetGuestState()
     return
   }
+  onRefreshUserProfile()
   onRefreshFavorites()
 })
 
 onUnload(() => {
   uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$off(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
 })
 </script>
 

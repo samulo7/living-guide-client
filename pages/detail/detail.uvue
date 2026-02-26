@@ -165,6 +165,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { CityItem } from '../../types/city'
+import { getApiBaseUrl } from '../../utils/request'
 
 interface CityDetailResponse {
   ok: boolean
@@ -188,7 +189,7 @@ interface CityHouseItem {
   min_duration: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = getApiBaseUrl()
 
 const emptyItem = {
   id: '', city: '', district: '', title: '',

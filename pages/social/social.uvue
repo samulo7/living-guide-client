@@ -2,39 +2,42 @@
   <view class="page">
     <view class="hero">
       <text class="hero-title">搭子广场</text>
-      <text class="hero-subtitle">一个人躺平太无聊？找个同频搭子</text>
-      <view class="hero-tips">
-        <text class="hero-tip">同城组局</text>
-        <text class="hero-tip">社恐友好</text>
-        <text class="hero-tip">即时响应</text>
-      </view>
+      <text class="hero-subtitle">找到同城同频的生活伙伴</text>
     </view>
 
     <scroll-view class="feed" direction="vertical">
       <view v-if="loading" class="state-wrap">
-        <text class="state-text">正在加载搭子动态...</text>
+        <text class="state-text">正在加载帖子...</text>
       </view>
 
       <view v-else-if="companionList.length == 0" class="state-wrap">
-        <text class="state-text">广场暂时还没有新帖子</text>
+        <text class="state-text">暂无帖子，去发布第一条吧</text>
       </view>
 
       <view v-else class="card-list">
-        <view class="post-card" v-for="post in companionList" :key="post.id">
+        <view class="post-card" v-for="post in companionList" :key="post.id" @click="goCompanionDetail(post.id)">
           <view class="post-head">
             <image v-if="post.avatar != ''" class="avatar" :src="post.avatar" mode="aspectFill"></image>
             <view v-else class="avatar-fallback">
-              <text class="avatar-fallback-icon">👤</text>
+              <text class="avatar-fallback-icon">U</text>
             </view>
 
             <view class="author-info">
-              <text class="nickname">{{ post.nickname }}</text>
-              <text class="meta">📍 {{ post.city_name }} · 发布于 {{ post.created_at_text }}</text>
+              <text class="nickname">{{ post.username }}</text>
+              <text v-if="post.tagline != ''" class="tagline">{{ post.tagline }}</text>
+              <text class="meta">{{ formatMeta(post) }}</text>
             </view>
           </view>
 
           <text class="post-title">{{ post.title }}</text>
           <text class="post-content">{{ post.content }}</text>
+
+          <image
+            v-if="post.images.length > 0"
+            class="cover-image"
+            :src="post.images[0]"
+            mode="aspectFill"
+          ></image>
 
           <view class="tag-row" v-if="post.tags.length > 0">
             <text
@@ -59,26 +62,32 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { getApiBaseUrl } from '../../utils/request'
 
-interface CompanionListResponse {
-  ok: boolean
+interface SocialListResponse {
+  ok?: boolean
   data?: Record<string, unknown>[]
   message?: string
 }
 
 interface CompanionItem {
   id: string
-  nickname: string
+  user_id: string
+  username: string
   avatar: string
+  tagline: string
   city_name: string
+  location_name: string
   title: string
   content: string
   tags: string[]
+  images: string[]
   created_at_text: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const API_BASE_URL = getApiBaseUrl()
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const REFRESH_USER_PROFILE_EVENT = 'REFRESH_USER_PROFILE'
 const TOKEN_KEY = 'token'
 
 const loading = ref(true)
@@ -102,20 +111,65 @@ function parseApiPayload<T>(raw: unknown): T | null {
   return null
 }
 
-function splitTags(rawTags: unknown): string[] {
-  if (Array.isArray(rawTags)) {
-    return rawTags
-      .map((item) => String(item || '').trim())
-      .filter((item) => item != '')
+function parseStringArray(rawValue: unknown): string[] {
+  if (Array.isArray(rawValue)) {
+    return rawValue.map((item) => String(item || '').trim()).filter((item) => item != '')
   }
-  const text = String(rawTags || '').trim()
+
+  const text = String(rawValue || '').trim()
   if (text == '') {
     return []
   }
-  return text
-    .split(/[、,，;；|/]+/)
-    .map((item) => item.trim())
-    .filter((item) => item != '')
+
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || '').trim()).filter((item) => item != '')
+    }
+  } catch (error) {
+    // ignore parse error and fallback to delimiter split
+  }
+
+  return text.split(/[,\uff0c\u3001|/]+/).map((item) => item.trim()).filter((item) => item != '')
+}
+
+function isDisplayableImageUrl(url: string): boolean {
+  const text = String(url || '').trim().toLowerCase()
+  if (text == '') {
+    return false
+  }
+  if (text.startsWith('blob:') || text.startsWith('file:') || text.startsWith('wxfile:') || text.startsWith('data:')) {
+    return false
+  }
+  return text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/')
+}
+
+function parseDateTime(raw: unknown): Date | null {
+  const text = String(raw || '').trim()
+  if (text == '') {
+    return null
+  }
+
+  const normalized = text.replace('T', ' ').replace(/\.\d{3}Z$/, '').replace(/Z$/, '')
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/)
+  if (match != null) {
+    const y = Number(match[1])
+    const m = Number(match[2])
+    const d = Number(match[3])
+    const hh = Number(match[4] || 0)
+    const mm = Number(match[5] || 0)
+    const ss = Number(match[6] || 0)
+    const local = new Date(y, m - 1, d, hh, mm, ss)
+    if (!Number.isNaN(local.getTime())) {
+      return local
+    }
+  }
+
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return date
 }
 
 function formatCreatedAt(raw: unknown): string {
@@ -123,28 +177,43 @@ function formatCreatedAt(raw: unknown): string {
   if (text == '') {
     return '--'
   }
-  const date = new Date(text)
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateTime(text)
+  if (date == null) {
     return text
   }
+
+  const now = new Date()
   const y = String(date.getFullYear())
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   const hh = String(date.getHours()).padStart(2, '0')
   const mm = String(date.getMinutes()).padStart(2, '0')
-  return y + '-' + m + '-' + d + ' ' + hh + ':' + mm
+
+  if (
+    date.getFullYear() == now.getFullYear() &&
+    date.getMonth() == now.getMonth() &&
+    date.getDate() == now.getDate()
+  ) {
+    return '\u4eca\u5929 ' + hh + ':' + mm
+  }
+  return y + '-' + m + '-' + d
 }
 
 function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
-  const city = String(row.city_name ?? '').trim()
+  const avatar = String(row.avatar ?? '').trim()
+  const images = parseStringArray(row.images).filter((url) => isDisplayableImageUrl(url))
   return {
     id: String(row.id ?? ''),
-    nickname: String(row.nickname ?? '').trim() || '匿名搭子',
-    avatar: String(row.avatar ?? '').trim(),
-    city_name: city != '' ? city : '未知城市',
+    user_id: String(row.user_id ?? ''),
+    username: String(row.username ?? row.nickname ?? '').trim() || '\u533f\u540d\u7528\u6237',
+    avatar: isDisplayableImageUrl(avatar) ? avatar : '',
+    tagline: String(row.tagline ?? '').trim(),
+    city_name: String(row.city_name ?? '').trim(),
+    location_name: String(row.location_name ?? '').trim(),
     title: String(row.title ?? '').trim(),
     content: String(row.content ?? '').trim(),
-    tags: splitTags(row.tags),
+    tags: parseStringArray(row.tags),
+    images: images,
     created_at_text: formatCreatedAt(row.created_at)
   }
 }
@@ -152,16 +221,16 @@ function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
 async function fetchCompanions(): Promise<CompanionItem[]> {
   return new Promise<CompanionItem[]>((resolve, reject) => {
     uni.request({
-      url: API_BASE_URL + '/api/companions',
+      url: API_BASE_URL + '/api/social/list',
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {
           reject('request failed: ' + res.statusCode)
           return
         }
-        const payload = parseApiPayload<CompanionListResponse>(res.data)
+        const payload = parseApiPayload<SocialListResponse>(res.data)
         if (payload == null || payload.ok != true || !Array.isArray(payload.data)) {
-          reject(payload?.message ?? 'companions is empty')
+          reject(payload?.message ?? 'social list is empty')
           return
         }
         resolve(payload.data.map((item) => mapCompanionRow(item)))
@@ -177,11 +246,24 @@ function hasToken(): boolean {
 
 function goPublish() {
   if (!hasToken()) {
-    uni.showToast({ title: '请先登录后再发布', icon: 'none' })
+    uni.showToast({ title: '\u8bf7\u5148\u767b\u5f55', icon: 'none' })
     uni.navigateTo({ url: '/pages/login/login' })
     return
   }
   uni.navigateTo({ url: '/pages/social/publish' })
+}
+
+function goCompanionDetail(id: string) {
+  const postId = String(id || '').trim()
+  if (postId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/companion_detail?id=' + encodeURIComponent(postId) })
+}
+
+function formatMeta(post: CompanionItem): string {
+  const location = post.location_name != '' ? post.location_name : (post.city_name != '' ? post.city_name : '\u672a\u586b\u5199\u4f4d\u7f6e')
+  return '\u4f4d\u7f6e ' + location + ' | ' + post.created_at_text
 }
 
 async function fetchData() {
@@ -191,7 +273,7 @@ async function fetchData() {
   } catch (error) {
     console.error('[social] load companions failed:', error)
     companionList.value = []
-    uni.showToast({ title: '加载搭子动态失败', icon: 'none' })
+    uni.showToast({ title: '\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5', icon: 'none' })
   } finally {
     loading.value = false
   }
@@ -201,14 +283,21 @@ function onRefreshSocialList() {
   fetchData()
 }
 
+function onRefreshUserProfile() {
+  fetchData()
+}
+
 onLoad(async () => {
   uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
   uni.$on(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  uni.$off(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
+  uni.$on(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
   await fetchData()
 })
 
 onUnload(() => {
   uni.$off(REFRESH_SOCIAL_LIST_EVENT, onRefreshSocialList)
+  uni.$off(REFRESH_USER_PROFILE_EVENT, onRefreshUserProfile)
 })
 </script>
 
@@ -235,25 +324,8 @@ onUnload(() => {
   color: #4b5563;
 }
 
-.hero-tips {
-  margin-top: 12px;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.hero-tip {
-  margin-right: 8px;
-  margin-bottom: 6px;
-  font-size: 11px;
-  color: #0f766e;
-  border-radius: 999px;
-  padding: 4px 10px;
-  border: 1px solid rgba(13, 148, 136, 0.22);
-  background-color: rgba(255, 255, 255, 0.78);
-}
-
 .feed {
-  height: calc(100vh - 146px);
+  height: calc(100vh - 130px);
   padding: 12px 14px 0;
 }
 
@@ -332,6 +404,12 @@ onUnload(() => {
   font-weight: 800;
 }
 
+.tagline {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
 .meta {
   margin-top: 3px;
   font-size: 12px;
@@ -355,6 +433,12 @@ onUnload(() => {
   color: #475569;
   lines: 3;
   text-overflow: ellipsis;
+}
+
+.cover-image {
+  margin-top: 10px;
+  height: 164px;
+  border-radius: 10px;
 }
 
 .tag-row {

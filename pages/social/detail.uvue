@@ -1,0 +1,490 @@
+<template>
+  <view class="page">
+    <scroll-view class="scroll" direction="vertical">
+      <view class="cover-wrap" v-if="post.images.length > 0">
+        <swiper class="cover-swiper" indicator-dots circular autoplay>
+          <swiper-item v-for="(img, index) in post.images" :key="img + '-' + String(index)">
+            <image class="cover-image" :src="imageUrl(img)" mode="aspectFill"></image>
+          </swiper-item>
+        </swiper>
+      </view>
+      <view class="cover-empty" v-else>
+        <text class="cover-empty-text">暂无图片</text>
+      </view>
+
+      <view class="main-card">
+        <text class="title">{{ post.title }}</text>
+
+        <view class="author-row">
+          <view class="avatar-wrap">
+            <image v-if="post.avatar != ''" class="avatar-image" :src="post.avatar" mode="aspectFill"></image>
+            <view v-else class="avatar-fallback">
+              <text class="avatar-fallback-icon">👤</text>
+            </view>
+          </view>
+          <view class="author-meta">
+            <text class="nickname">{{ post.nickname }}</text>
+            <text class="time-text">{{ post.created_at_text }}</text>
+          </view>
+        </view>
+
+        <text class="location-line">📍 {{ locationLabel }}</text>
+        <text class="address-line" v-if="post.location != null && post.location.address.trim() != ''">
+          {{ post.location.address }}
+        </text>
+
+        <view class="tag-row" v-if="post.tags.length > 0">
+          <text class="tag-chip" v-for="(tag, index) in post.tags" :key="post.id + '-' + String(index)">{{ tag }}</text>
+        </view>
+      </view>
+
+      <view class="content-card">
+        <text class="content-title">正文</text>
+        <text class="content-text">{{ post.content }}</text>
+      </view>
+
+      <view class="contact-card" v-if="post.contact.trim() != ''">
+        <text class="contact-label">联系信息</text>
+        <text class="contact-text">{{ post.contact }}</text>
+      </view>
+
+      <view v-if="loading" class="state-wrap">
+        <text class="state-text">正在加载详情...</text>
+      </view>
+
+      <view style="height: 120px;"></view>
+    </scroll-view>
+
+    <view class="bottom-bar">
+      <view class="contact-btn" @click="contactAuthor">
+        <text class="contact-btn-text">想要联系</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { request } from '../../utils/request'
+
+interface SocialDetailResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface CompanionLocation {
+  name: string
+  address: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+interface SocialDetailItem {
+  id: string
+  nickname: string
+  avatar: string
+  title: string
+  content: string
+  tags: string[]
+  contact: string
+  location: CompanionLocation | null
+  images: string[]
+  created_at: string
+  created_at_text: string
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+
+const loading = ref(false)
+const post = ref<SocialDetailItem>({
+  id: '',
+  nickname: '匿名游民',
+  avatar: '',
+  title: '加载中...',
+  content: '',
+  tags: [],
+  contact: '',
+  location: null,
+  images: [],
+  created_at: '',
+  created_at_text: ''
+})
+
+const locationLabel = computed((): string => {
+  const city = String(post.value.location?.city || '').trim()
+  const name = String(post.value.location?.name || '').trim()
+  if (city != '' && name != '') {
+    return city + ' · ' + name
+  }
+  if (city != '') {
+    return city
+  }
+  if (name != '') {
+    return name
+  }
+  return '位置待定'
+})
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags
+      .map((item) => String(item || '').trim())
+      .filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[、，,|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function parseLocation(rawLocation: unknown): CompanionLocation | null {
+  const source = parseApiPayload<Record<string, unknown>>(rawLocation)
+  if (source == null) {
+    return null
+  }
+
+  const name = String(source.name || '').trim()
+  const address = String(source.address || '').trim()
+  const city = String(source.city || '').trim()
+  const latitude = Number(source.latitude ?? NaN)
+  const longitude = Number(source.longitude ?? NaN)
+
+  if (name == '' && address == '' && city == '' && !Number.isFinite(latitude) && !Number.isFinite(longitude)) {
+    return null
+  }
+
+  return {
+    name,
+    address,
+    city,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  }
+}
+
+function parseImages(rawImages: unknown): string[] {
+  if (!Array.isArray(rawImages)) {
+    return []
+  }
+  return rawImages
+    .map((item) => String(item || '').trim())
+    .filter((item) => item != '')
+}
+
+function formatBeijingTimeLabel(raw: unknown): string {
+  const source = String(raw || '').trim()
+  if (source == '') {
+    return '刚刚发布'
+  }
+  const date = new Date(source)
+  if (!Number.isFinite(date.getTime())) {
+    return '刚刚发布'
+  }
+
+  const text = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date)
+
+  return '北京时间 ' + text.replace(/\//g, '-')
+}
+
+function mapDetailRow(row: Record<string, unknown>): SocialDetailItem {
+  return {
+    id: String(row.id ?? ''),
+    nickname: String(row.nickname ?? '').trim() || '匿名游民',
+    avatar: String(row.avatar ?? '').trim(),
+    title: String(row.title ?? '').trim(),
+    content: String(row.content ?? '').trim(),
+    tags: splitTags(row.tags),
+    contact: String(row.contact ?? '').trim(),
+    location: parseLocation(row.location),
+    images: parseImages(row.images),
+    created_at: String(row.created_at ?? '').trim(),
+    created_at_text: formatBeijingTimeLabel(row.created_at)
+  }
+}
+
+function imageUrl(pathValue: string): string {
+  const text = String(pathValue || '').trim()
+  if (text == '') {
+    return ''
+  }
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+  return API_BASE_URL + text
+}
+
+async function fetchDetail(id: string) {
+  loading.value = true
+  try {
+    const payload = await request<SocialDetailResponse>({
+      url: '/api/social/detail/' + encodeURIComponent(id),
+      method: 'GET'
+    })
+    if (payload.ok !== true || payload.data == null) {
+      throw new Error(payload.message || 'detail is empty')
+    }
+    post.value = mapDetailRow(payload.data)
+  } catch (error) {
+    console.error('[social-detail] fetch failed:', error)
+    uni.showToast({ title: '详情加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+function contactAuthor() {
+  const contact = post.value.contact.trim()
+  if (contact == '') {
+    uni.showToast({ title: '对方暂未留下联系方式', icon: 'none' })
+    return
+  }
+  uni.setClipboardData({
+    data: contact,
+    success: () => {
+      uni.showToast({ title: '联系方式已复制', icon: 'none' })
+    },
+    fail: () => {
+      uni.showToast({ title: contact, icon: 'none' })
+    }
+  })
+}
+
+onLoad((options) => {
+  const id = String(options?.id || '').trim()
+  if (id == '') {
+    uni.showToast({ title: '参数缺失', icon: 'none' })
+    return
+  }
+  fetchDetail(id)
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f3f5f7;
+}
+
+.scroll {
+  height: 100%;
+}
+
+.cover-wrap {
+  height: 280px;
+}
+
+.cover-swiper,
+.cover-image {
+  width: 100%;
+  height: 100%;
+}
+
+.cover-empty {
+  height: 220px;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%);
+}
+
+.cover-empty-text {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.main-card {
+  margin: 12px 14px 0;
+  border-radius: 16px;
+  background-color: #ffffff;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.title {
+  font-size: 22px;
+  line-height: 30px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.author-row {
+  margin-top: 14px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  overflow: hidden;
+  background-color: #e5e7eb;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-fallback-icon {
+  font-size: 18px;
+}
+
+.author-meta {
+  margin-left: 10px;
+}
+
+.nickname {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 800;
+}
+
+.time-text {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.location-line {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.address-line {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #64748b;
+}
+
+.tag-row {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: #166534;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.content-card {
+  margin: 12px 14px 0;
+  border-radius: 16px;
+  background-color: #ffffff;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.content-title {
+  font-size: 15px;
+  color: #1f2937;
+  font-weight: 800;
+}
+
+.content-text {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 24px;
+  color: #334155;
+}
+
+.contact-card {
+  margin: 12px 14px 0;
+  border-radius: 16px;
+  background-color: #ffffff;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.contact-label {
+  font-size: 13px;
+  color: #475569;
+}
+
+.contact-text {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.state-wrap {
+  margin-top: 16px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px 18px;
+  background-color: rgba(243, 245, 247, 0.94);
+}
+
+.contact-btn {
+  height: 48px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: #16a34a;
+}
+
+.contact-btn-text {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+}
+</style>

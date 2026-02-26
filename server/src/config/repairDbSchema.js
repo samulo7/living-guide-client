@@ -179,12 +179,12 @@ async function ensureCompanionsTable() {
     CREATE TABLE IF NOT EXISTS companions (
       id INT NOT NULL AUTO_INCREMENT,
       user_id INT NOT NULL DEFAULT 0,
-      nickname VARCHAR(80) NOT NULL,
-      avatar VARCHAR(500) NOT NULL DEFAULT '',
-      city_name VARCHAR(120) NOT NULL DEFAULT '',
       title VARCHAR(160) NOT NULL,
       content TEXT NOT NULL,
       tags VARCHAR(255) NOT NULL DEFAULT '',
+      location_json TEXT NULL,
+      images_json TEXT NULL,
+      contact VARCHAR(120) NOT NULL DEFAULT '',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
@@ -195,50 +195,77 @@ async function ensureCompanionsTable() {
 }
 
 async function seedCompanions() {
-  await pool.query(`
-    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
-    SELECT
-      '北方热心饭搭子',
-      '',
-      '鹤岗',
-      '今晚找个饭搭子，AA 吃铁锅炖',
-      '我在兴安区，饭量正常，不劝酒不尬聊，吃完就散步回家。社恐也欢迎，一起把晚饭这件小事搞定。',
-      '饭搭子,社恐友好,AA制',
-      DATE_SUB(NOW(), INTERVAL 2 HOUR)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM companions WHERE nickname = '北方热心饭搭子' AND title = '今晚找个饭搭子，AA 吃铁锅炖'
-    )
+  const [userRows] = await pool.query(`
+    SELECT id
+    FROM users
+    ORDER BY id ASC
+    LIMIT 1
   `)
+  if (!Array.isArray(userRows) || userRows.length == 0) {
+    return
+  }
 
-  await pool.query(`
-    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
-    SELECT
-      '海边晨跑搭子',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
-      '大理',
-      '早上 6:30 洱海慢跑 5km，有人一起吗',
-      '配速 7 分左右，重在打卡和晒太阳。跑后可一起喝豆浆，不商业，不推销，纯健康互相监督。',
-      '运动搭子,早起打卡,低强度',
-      DATE_SUB(NOW(), INTERVAL 7 HOUR)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM companions WHERE nickname = '海边晨跑搭子' AND title = '早上 6:30 洱海慢跑 5km，有人一起吗'
-    )
-  `)
+  const userId = Number(userRows[0]?.id || 0)
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return
+  }
 
-  await pool.query(`
-    INSERT INTO companions (nickname, avatar, city_name, title, content, tags, created_at)
-    SELECT
-      '远程自习合伙人',
-      '',
-      '线上',
-      '下午 2 点线上共学 3 小时，互相监督接单',
-      '开腾讯会议静音自习，每 50 分钟休息 10 分钟。适合自由职业和远程工作者，结束后复盘今天推进了什么。',
-      '线上搭子,远程办公,效率提升',
-      DATE_SUB(NOW(), INTERVAL 1 DAY)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM companions WHERE nickname = '远程自习合伙人' AND title = '下午 2 点线上共学 3 小时，互相监督接单'
+  const seedRows = [
+    {
+      title: '今晚找个饭搭子，AA 吃铁锅炖',
+      content: '地点在兴安区，轻社交不尬聊。吃完可以散步回家，社恐也欢迎。',
+      tags: '饭搭子,社恐友好,AA',
+      location_json: '{"name":"兴安区商圈","address":"黑龙江省鹤岗市兴安区","city":"鹤岗市","latitude":47.33542,"longitude":130.29377}',
+      images_json: '[]',
+      contact: '微信: nomad_hotpot',
+      hours_ago: 2
+    },
+    {
+      title: '明早 6:30 海边慢跑 5km',
+      content: '配速 6-7 分，重在打卡和晒太阳。跑后可一起吃早饭。',
+      tags: '运动,晨跑,低强度',
+      location_json: '{"name":"龙湾海岸步道","address":"云南省大理市洱海北岸","city":"大理市","latitude":25.71478,"longitude":100.17798}',
+      images_json: '[]',
+      contact: '电话: 13900000000',
+      hours_ago: 7
+    },
+    {
+      title: '下午线上共学 3 小时',
+      content: '腾讯会议静音共学，每 50 分钟休息 10 分钟，结束后互相复盘。',
+      tags: '线上搭子,远程办公,效率',
+      location_json: '{"name":"线上会议室","address":"线上","city":"线上","latitude":null,"longitude":null}',
+      images_json: '[]',
+      contact: '微信: deep_work_room',
+      hours_ago: 24
+    }
+  ]
+
+  for (let i = 0; i < seedRows.length; i++) {
+    const item = seedRows[i]
+    await pool.query(
+      `
+        INSERT INTO companions (user_id, title, content, tags, location_json, images_json, contact, created_at)
+        SELECT ?, ?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? HOUR)
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM companions
+          WHERE user_id = ? AND title = ?
+        )
+      `,
+      [
+        userId,
+        item.title,
+        item.content,
+        item.tags,
+        item.location_json,
+        item.images_json,
+        item.contact,
+        item.hours_ago,
+        userId,
+        item.title
+      ]
     )
-  `)
+  }
 }
 
 async function repairCompanionsTable() {
@@ -249,21 +276,30 @@ async function repairCompanionsTable() {
   }
 
   await ensureColumn('companions', 'user_id', 'ALTER TABLE companions ADD COLUMN user_id INT NOT NULL DEFAULT 0 AFTER id')
-  await ensureColumn('companions', 'nickname', "ALTER TABLE companions ADD COLUMN nickname VARCHAR(80) NOT NULL DEFAULT '' AFTER id")
-  await ensureColumn('companions', 'avatar', "ALTER TABLE companions ADD COLUMN avatar VARCHAR(500) NOT NULL DEFAULT '' AFTER nickname")
-  await ensureColumn('companions', 'city_name', "ALTER TABLE companions ADD COLUMN city_name VARCHAR(120) NOT NULL DEFAULT '' AFTER avatar")
-  await ensureColumn('companions', 'title', "ALTER TABLE companions ADD COLUMN title VARCHAR(160) NOT NULL DEFAULT '' AFTER city_name")
+  await ensureColumn('companions', 'title', "ALTER TABLE companions ADD COLUMN title VARCHAR(160) NOT NULL DEFAULT '' AFTER user_id")
   await ensureColumn('companions', 'content', "ALTER TABLE companions ADD COLUMN content TEXT NOT NULL AFTER title")
   await ensureColumn('companions', 'tags', "ALTER TABLE companions ADD COLUMN tags VARCHAR(255) NOT NULL DEFAULT '' AFTER content")
+  await ensureColumn('companions', 'location_json', 'ALTER TABLE companions ADD COLUMN location_json TEXT NULL AFTER tags')
+  await ensureColumn('companions', 'images_json', 'ALTER TABLE companions ADD COLUMN images_json TEXT NULL AFTER location_json')
+  await ensureColumn('companions', 'contact', "ALTER TABLE companions ADD COLUMN contact VARCHAR(120) NOT NULL DEFAULT '' AFTER images_json")
   await ensureColumn(
     'companions',
     'updated_at',
     'ALTER TABLE companions ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
   )
 
+  if (columns.has('nickname')) {
+    await pool.query("ALTER TABLE companions MODIFY COLUMN nickname VARCHAR(80) NOT NULL DEFAULT ''")
+  }
+  if (columns.has('avatar')) {
+    await pool.query("ALTER TABLE companions MODIFY COLUMN avatar VARCHAR(500) NOT NULL DEFAULT ''")
+  }
+  if (columns.has('city_name')) {
+    await pool.query("ALTER TABLE companions MODIFY COLUMN city_name VARCHAR(120) NOT NULL DEFAULT ''")
+  }
+
   await seedCompanions()
 }
-
 async function ensureFavoritesTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS favorites (

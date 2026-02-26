@@ -32,8 +32,37 @@
         </view>
       </view>
 
-      <view class="submit-btn" @click="onSubmit">
-        <text class="submit-btn-text">{{ submitting ? '发布中...' : '立即发布' }}</text>
+      <text class="label">位置（高德）</text>
+      <view class="location-card" @click="pickLocation">
+        <text class="location-main">{{ locationSummary }}</text>
+        <text class="location-sub">{{ locationAddressText }}</text>
+      </view>
+
+      <text class="label">图片（0-3 张）</text>
+      <view class="image-grid">
+        <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
+          <text class="image-add-plus">+</text>
+          <text class="image-add-text">添加</text>
+        </view>
+        <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
+          <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
+          <view class="image-remove" @click="removeImage(index)">
+            <text class="image-remove-text">×</text>
+          </view>
+        </view>
+      </view>
+      <text class="helper-text">{{ uploadingImages ? '图片上传中...' : '最多可上传 3 张' }}</text>
+
+      <text class="label">联系方式（选填）</text>
+      <input
+        class="input"
+        v-model="formContact"
+        maxlength="120"
+        placeholder="例如：微信号 / 电话 / Telegram"
+      />
+
+      <view class="submit-btn" :class="{ 'submit-btn-disabled': submitting || uploadingImages }" @click="onSubmit">
+        <text class="submit-btn-text">{{ submitText }}</text>
       </view>
     </view>
   </view>
@@ -49,6 +78,22 @@ interface PublishResponse {
   message?: string
 }
 
+interface UploadImageResponse {
+  success?: boolean
+  path?: string
+  message?: string
+}
+
+interface SelectedLocation {
+  name: string
+  address: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const API_BASE_URL = 'http://localhost:3000'
+const TOKEN_KEY = 'token'
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
 const TAG_OPTIONS: string[] = [
   '看房',
@@ -63,19 +108,110 @@ const TAG_OPTIONS: string[] = [
 
 const formTitle = ref('')
 const formContent = ref('')
+const formContact = ref('')
 const selectedTags = ref<string[]>([])
+const selectedLocation = ref<SelectedLocation | null>(null)
+const imagePaths = ref<string[]>([])
+const uploadingImages = ref(false)
 const submitting = ref(false)
 
 const normalizedTags = computed((): string[] => {
   return selectedTags.value.slice(0, 8)
 })
 
+const locationSummary = computed((): string => {
+  const location = selectedLocation.value
+  if (location == null) {
+    return '点击选择位置'
+  }
+  const city = location.city.trim() != '' ? location.city.trim() : '未知城市'
+  const name = location.name.trim() != '' ? location.name.trim() : '未命名地标'
+  return `📍 ${city} · ${name}`
+})
+
+const locationAddressText = computed((): string => {
+  const location = selectedLocation.value
+  if (location == null) {
+    return '将调用高德地图选点'
+  }
+  return location.address.trim() != '' ? location.address.trim() : '未提供详细地址'
+})
+
+const submitText = computed((): string => {
+  if (uploadingImages.value) {
+    return '图片上传中...'
+  }
+  if (submitting.value) {
+    return '发布中...'
+  }
+  return '立即发布'
+})
+
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function deriveCityFromAddress(address: string): string {
+  const text = String(address || '').trim()
+  if (text == '') {
+    return ''
+  }
+  const match = text.match(/([\u4e00-\u9fa5A-Za-z]+?(?:市|州|区|县))/)
+  return match != null ? String(match[1] || '').trim() : ''
+}
+
+function mapChooseLocationResult(result: Record<string, unknown>): SelectedLocation {
+  const name = String(result.name || '').trim()
+  const address = String(result.address || '').trim()
+  const cityRaw = String(result.city || result.province || '').trim()
+  const city = cityRaw != '' ? cityRaw : deriveCityFromAddress(address)
+  const latitude = Number(result.latitude ?? NaN)
+  const longitude = Number(result.longitude ?? NaN)
+
+  return {
+    name,
+    address,
+    city,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  }
+}
+
+function imageUrl(pathValue: string): string {
+  const text = String(pathValue || '').trim()
+  if (text == '') {
+    return ''
+  }
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+  return API_BASE_URL + text
+}
+
 function isTagSelected(tag: string): boolean {
   return selectedTags.value.includes(tag)
 }
 
 function toggleTag(tag: string) {
-  if (submitting.value) {
+  if (submitting.value || uploadingImages.value) {
     return
   }
   const index = selectedTags.value.findIndex((item) => item == tag)
@@ -90,10 +226,125 @@ function toggleTag(tag: string) {
   selectedTags.value.push(tag)
 }
 
+function pickLocation() {
+  if (submitting.value || uploadingImages.value) {
+    return
+  }
+  uni.chooseLocation({
+    success: (res) => {
+      selectedLocation.value = mapChooseLocationResult(res as unknown as Record<string, unknown>)
+    },
+    fail: (error) => {
+      console.error('[social-publish] chooseLocation failed:', error)
+      uni.showToast({ title: '定位失败，请检查高德地图配置', icon: 'none' })
+    }
+  })
+}
+
+function removeImage(index: number) {
+  if (submitting.value || uploadingImages.value) {
+    return
+  }
+  if (index < 0 || index >= imagePaths.value.length) {
+    return
+  }
+  imagePaths.value.splice(index, 1)
+}
+
+function authHeaders(): Record<string, string> {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  if (token == '') {
+    return {}
+  }
+  return {
+    Authorization: 'Bearer ' + token
+  }
+}
+
+async function uploadImage(filePath: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    uni.uploadFile({
+      url: API_BASE_URL + '/api/social/upload-image',
+      filePath,
+      name: 'file',
+      header: authHeaders(),
+      success: (res) => {
+        if (res.statusCode != 200 && res.statusCode != 201) {
+          reject('upload failed: ' + res.statusCode)
+          return
+        }
+        const payload = parseApiPayload<UploadImageResponse>(res.data)
+        if (payload == null || payload.success !== true || String(payload.path || '').trim() == '') {
+          reject(payload?.message || 'invalid upload response')
+          return
+        }
+        resolve(String(payload.path || '').trim())
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+async function chooseImages() {
+  if (submitting.value || uploadingImages.value) {
+    return
+  }
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再上传图片', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+
+  const remain = Math.max(0, 3 - imagePaths.value.length)
+  if (remain <= 0) {
+    uni.showToast({ title: '最多上传 3 张图片', icon: 'none' })
+    return
+  }
+
+  uni.chooseImage({
+    count: remain,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: async (res) => {
+      const paths = Array.isArray(res.tempFilePaths) ? res.tempFilePaths : []
+      if (paths.length == 0) {
+        return
+      }
+      uploadingImages.value = true
+      try {
+        for (let i = 0; i < paths.length; i++) {
+          const uploadedPath = await uploadImage(String(paths[i] || ''))
+          if (uploadedPath != '') {
+            imagePaths.value.push(uploadedPath)
+          }
+          if (imagePaths.value.length >= 3) {
+            break
+          }
+        }
+      } catch (error) {
+        console.error('[social-publish] upload image failed:', error)
+        uni.showToast({ title: '图片上传失败，请重试', icon: 'none' })
+      } finally {
+        uploadingImages.value = false
+      }
+    },
+    fail: (error) => {
+      console.error('[social-publish] chooseImage failed:', error)
+    }
+  })
+}
+
 async function onSubmit() {
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录后再发布', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+
   const title = formTitle.value.trim()
   const content = formContent.value.trim()
   const tags = normalizedTags.value
+  const contact = formContact.value.trim()
 
   if (title.length < 2) {
     uni.showToast({ title: '标题至少 2 个字', icon: 'none' })
@@ -107,8 +358,12 @@ async function onSubmit() {
     uni.showToast({ title: '请至少选择 1 个标签', icon: 'none' })
     return
   }
+  if (selectedLocation.value == null) {
+    uni.showToast({ title: '请先选择位置', icon: 'none' })
+    return
+  }
 
-  if (submitting.value) {
+  if (submitting.value || uploadingImages.value) {
     return
   }
 
@@ -120,7 +375,10 @@ async function onSubmit() {
       data: {
         title,
         content,
-        tags
+        tags,
+        location: selectedLocation.value,
+        images: imagePaths.value,
+        contact
       }
     })
 
@@ -133,7 +391,7 @@ async function onSubmit() {
     uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
     setTimeout(() => {
       uni.navigateBack()
-    }, 1500)
+    }, 900)
   } catch (error) {
     console.error('[social-publish] failed:', error)
     uni.showToast({ title: '发布失败，请稍后重试', icon: 'none' })
@@ -219,6 +477,87 @@ async function onSubmit() {
   font-weight: 700;
 }
 
+.location-card {
+  border-radius: 12px;
+  border: 1px solid #d7e1ee;
+  background-color: #f8fafc;
+  padding: 10px 12px;
+}
+
+.location-main {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.location-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.image-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.image-cell {
+  width: 92px;
+  height: 92px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  position: relative;
+  background-color: #f1f5f9;
+}
+
+.image-preview {
+  width: 100%;
+  height: 100%;
+}
+
+.image-add {
+  border: 1px dashed #9ca3af;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-add-plus {
+  font-size: 24px;
+  line-height: 24px;
+  color: #6b7280;
+}
+
+.image-add-text {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.image-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: rgba(15, 23, 42, 0.68);
+  align-items: center;
+  justify-content: center;
+}
+
+.image-remove-text {
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.helper-text {
+  font-size: 12px;
+  color: #64748b;
+}
+
 .submit-btn {
   margin-top: 18px;
   height: 46px;
@@ -226,6 +565,10 @@ async function onSubmit() {
   align-items: center;
   justify-content: center;
   background-color: #16a34a;
+}
+
+.submit-btn-disabled {
+  opacity: 0.72;
 }
 
 .submit-btn-text {

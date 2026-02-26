@@ -64,6 +64,12 @@
       }
     },
     {
+      "path": "pages/social/detail",
+      "style": {
+        "navigationBarTitleText": "搭子详情"
+      }
+    },
+    {
       "path": "pages/login/login",
       "style": {
         "navigationBarTitleText": "登录"

@@ -53,44 +53,12 @@
         </view>
 
         <view v-else class="feed-list">
-          <view class="feed-card" v-for="item in companions" :key="item.id" @click="goDetail(item.id)">
-            <view class="feed-head">
-              <view class="avatar-wrap">
-                <image v-if="item.avatar != ''" class="avatar-image" :src="item.avatar" mode="aspectFill"></image>
-                <view v-else class="avatar-fallback">
-                  <text class="avatar-fallback-icon">👤</text>
-                </view>
-              </view>
-
-              <view class="head-meta">
-                <view class="meta-row">
-                  <text class="nickname">{{ item.nickname }}</text>
-                  <text class="time-text">{{ item.created_at_text }}</text>
-                </view>
-                <text class="city-chip">📍 {{ locationLabel(item) }}</text>
-              </view>
-            </view>
-
-            <text class="card-title">{{ item.title }}</text>
-            <text class="card-content">{{ item.content }}</text>
-
-            <image
-              v-if="item.images.length > 0"
-              class="card-cover"
-              :src="imageUrl(item.images[0])"
-              mode="aspectFill"
-            ></image>
-
-            <view class="tag-row" v-if="item.tags.length > 0">
-              <text
-                v-for="(tag, index) in item.tags"
-                :key="item.id + '-' + index"
-                :class="['tag-chip', 'tag-chip-' + String(index % 4)]"
-              >
-                {{ tag }}
-              </text>
-            </view>
-          </view>
+          <social-post-card
+            v-for="item in companions"
+            :key="item.id"
+            :item="item"
+            @click="goDetail(item.id)"
+          ></social-post-card>
         </view>
       </view>
 
@@ -105,8 +73,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import SocialPostCard from '../../components/SocialPostCard.uvue'
 import { request } from '../../utils/request'
-import { buildApiUrl } from '../../utils/api'
 
 interface SocialListResponse {
   ok: boolean
@@ -131,6 +99,7 @@ interface CompanionItem {
   tags: string[]
   location: CompanionLocation | null
   images: string[]
+  status: number
   created_at: string
   created_at_text: string
 }
@@ -252,6 +221,7 @@ function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
     tags: splitTags(row.tags),
     location: parseLocation(row.location),
     images: parseImages(row.images),
+    status: Number(row.status ?? 1),
     created_at: String(row.created_at ?? '').trim(),
     created_at_text: formatBeijingTimeLabel(row.created_at)
   }
@@ -284,50 +254,6 @@ function buildRadarNodes(rows: CompanionItem[]): RadarNode[] {
       }
     }
   })
-}
-
-function locationLabel(item: CompanionItem): string {
-  const city = String(item.location?.city || '').trim()
-  const name = String(item.location?.name || '').trim()
-  if (city != '' && name != '') {
-    return city + ' · ' + name
-  }
-  if (city != '') {
-    return city
-  }
-  if (name != '') {
-    return name
-  }
-  return '位置待定'
-}
-
-function normalizeImageUrlProtocol(url: string): string {
-  const text = String(url || '').trim()
-  if (!text.startsWith('http://')) {
-    return text
-  }
-  const host = text.slice('http://'.length).split('/')[0].toLowerCase()
-  if (
-    host.startsWith('localhost') ||
-    host.startsWith('127.') ||
-    host.startsWith('10.') ||
-    host.startsWith('192.168.') ||
-    host.startsWith('172.')
-  ) {
-    return text
-  }
-  return 'https://' + text.slice('http://'.length)
-}
-
-function imageUrl(pathValue: string): string {
-  const text = String(pathValue || '').trim()
-  if (text == '') {
-    return ''
-  }
-  if (text.startsWith('http://') || text.startsWith('https://')) {
-    return normalizeImageUrlProtocol(text)
-  }
-  return normalizeImageUrlProtocol(buildApiUrl(text))
 }
 
 function pingCompanion(nickname: string) {
@@ -559,132 +485,6 @@ onUnload(() => {
 .state-text {
   font-size: 14px;
   color: #8c8c8c;
-}
-
-.feed-card {
-  margin-top: 12px;
-  background-color: #ffffff;
-  border-radius: 16px;
-  padding: 14px;
-  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
-}
-
-.feed-head {
-  flex-direction: row;
-  align-items: center;
-}
-
-.avatar-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 21px;
-  overflow: hidden;
-  background-color: #e5e7eb;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-}
-
-.avatar-fallback {
-  width: 100%;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  background-color: #e5e7eb;
-}
-
-.avatar-fallback-icon {
-  font-size: 18px;
-}
-
-.head-meta {
-  flex: 1;
-  margin-left: 10px;
-}
-
-.meta-row {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.nickname {
-  font-size: 15px;
-  color: #111827;
-  font-weight: 800;
-}
-
-.time-text {
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.city-chip {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #4b5563;
-}
-
-.card-title {
-  margin-top: 12px;
-  font-size: 17px;
-  line-height: 24px;
-  color: #111827;
-  font-weight: 900;
-}
-
-.card-content {
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  color: #475569;
-}
-
-.card-cover {
-  margin-top: 10px;
-  width: 100%;
-  height: 168px;
-  border-radius: 12px;
-}
-
-.tag-row {
-  margin-top: 12px;
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.tag-chip {
-  margin-right: 7px;
-  margin-bottom: 6px;
-  font-size: 11px;
-  border-radius: 999px;
-  padding: 4px 9px;
-}
-
-.tag-chip-0 {
-  color: #155e75;
-  background-color: #ecfeff;
-  border: 1px solid #a5f3fc;
-}
-
-.tag-chip-1 {
-  color: #7c2d12;
-  background-color: #fff7ed;
-  border: 1px solid #fed7aa;
-}
-
-.tag-chip-2 {
-  color: #166534;
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.tag-chip-3 {
-  color: #1e3a8a;
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
 }
 
 .publish-fab {

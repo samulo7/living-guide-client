@@ -4,29 +4,29 @@
     <view class="bg-orb bg-orb-b"></view>
     <scroll-view class="form-scroll" direction="vertical">
       <view class="form-card">
-        <text class="title">发布搭子</text>
+        <text class="title">{{ '发布搭子' }}</text>
 
-        <text class="label">标题 <text class="required-star">*</text></text>
+        <text class="label">{{ '标题' }} <text class="required-star">*</text></text>
         <input
           class="input"
           :class="{ 'field-invalid': shouldShowError(titleError) }"
           v-model="formTitle"
           maxlength="160"
-          placeholder="例如：周末一起看房/吃饭"
+          :placeholder="'例如：周末一起看房/吃饭'"
         />
         <text class="error-text" v-if="shouldShowError(titleError)">{{ titleError }}</text>
 
-        <text class="label">内容 <text class="required-star">*</text></text>
+        <text class="label">{{ '内容' }} <text class="required-star">*</text></text>
         <textarea
           class="textarea"
           :class="{ 'field-invalid': shouldShowError(contentError) }"
           v-model="formContent"
           maxlength="2000"
-          placeholder="写清时间、地点、你希望的搭子类型"
+          :placeholder="'写清时间、地点、你希望的搭子类型'"
         />
         <text class="error-text" v-if="shouldShowError(contentError)">{{ contentError }}</text>
 
-        <text class="label">标签（可多选）</text>
+        <text class="label">{{ '标签（可多选）' }}</text>
         <view class="tag-selector">
           <view
             v-for="tag in TAG_OPTIONS"
@@ -40,61 +40,61 @@
         </view>
         <text class="error-text" v-if="shouldShowError(tagsError)">{{ tagsError }}</text>
 
-        <text class="label">位置（需选） <text class="required-star">*</text></text>
+        <text class="label">{{ '位置（必选）' }} <text class="required-star">*</text></text>
         <view class="location-card" :class="{ 'field-invalid': shouldShowError(locationError) }" @click="pickLocation">
           <text class="location-main">{{ locationSummary }}</text>
           <text class="location-sub">{{ locationAddressText }}</text>
         </view>
         <text class="error-text" v-if="shouldShowError(locationError)">{{ locationError }}</text>
-        <text class="location-fallback" @click="enableManualLocation">地图不可用？点此手动填写位置</text>
+        <text class="location-fallback" @click="enableManualLocation">{{ '地图不可用？点此手动填写位置' }}</text>
         <view class="manual-location" v-if="manualLocationEnabled">
           <input
             class="input"
             v-model="manualLocationCity"
             maxlength="40"
-            placeholder="城市（如：沈阳）"
+            :placeholder="'城市（如：沈阳）'"
           />
           <input
             class="input manual-location-gap"
             v-model="manualLocationName"
             maxlength="80"
-            placeholder="地点名称（如：皇姑万象汇）"
+            :placeholder="'地点名称（如：皇姑万象汇）'"
           />
           <input
             class="input manual-location-gap"
             v-model="manualLocationAddress"
             maxlength="160"
-            placeholder="详细地址（可选）"
+            :placeholder="'详细地址（可选）'"
           />
           <view class="manual-location-save" @click="saveManualLocation">
-            <text class="manual-location-save-text">保存手动位置</text>
+            <text class="manual-location-save-text">{{ '保存手动位置' }}</text>
           </view>
         </view>
 
         <view class="label-row">
-          <text class="label">图片（可选，最多 3 张）</text>
+          <text class="label">{{ '图片（可选，最多 3 张）' }}</text>
           <text class="label-counter">{{ imageCountText }}</text>
         </view>
         <view class="image-grid">
           <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
             <text class="image-add-plus">+</text>
-            <text class="image-add-text">添加</text>
+            <text class="image-add-text">{{ '添加' }}</text>
           </view>
           <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
             <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
             <view class="image-remove" @click="removeImage(index)">
-              <text class="image-remove-text">×</text>
+              <text class="image-remove-text">x</text>
             </view>
           </view>
         </view>
         <text class="helper-text">{{ imageHelperText }}</text>
 
-        <text class="label">联系方式（选填）</text>
+        <text class="label">{{ '联系方式（选填）' }}</text>
         <input
           class="input"
           v-model="formContact"
           maxlength="120"
-          placeholder="例如：微信号 / 电话 / Telegram"
+          :placeholder="'例如：微信号 / 电话 / Telegram'"
         />
 
         <view class="form-bottom-spacer"></view>
@@ -102,7 +102,7 @@
     </scroll-view>
 
     <view class="submit-bar">
-      <text class="safety-tip">温馨提示：线下见面请选择公共场所，谨防诈骗</text>
+      <text class="safety-tip">{{ '温馨提示：线下见面请选择公共场所，谨防诈骗' }}</text>
       <view class="submit-btn" :class="{ 'submit-btn-disabled': !canSubmit }" @click="onSubmit">
         <text class="submit-btn-text">{{ submitText }}</text>
       </view>
@@ -118,6 +118,7 @@ import { buildApiUrl } from '../../utils/api'
 interface PublishResponse {
   success?: boolean
   id?: number
+  code?: string
   message?: string
 }
 
@@ -137,6 +138,8 @@ interface SelectedLocation {
 
 const TOKEN_KEY = 'token'
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const PUBLISH_LIMIT_DAILY = 'DAILY_LIMIT'
+const PUBLISH_LIMIT_ACTIVE = 'ACTIVE_LIMIT'
 const TAG_OPTIONS: string[] = [
   '看房',
   '探店',
@@ -173,10 +176,10 @@ const locationSummary = computed((): string => {
   }
   const name = location.name.trim()
   if (name != '') {
-    return `📍 ${name}`
+    return '位置：' + name
   }
   const city = location.city.trim()
-  return city != '' ? `📍 ${city}` : '📍 未命名位置'
+  return city != '' ? ('位置：' + city) : '位置：未命名'
 })
 
 const locationAddressText = computed((): string => {
@@ -263,7 +266,7 @@ function deriveCityFromAddress(address: string): string {
   if (text == '') {
     return ''
   }
-  const match = text.match(/([\u4e00-\u9fa5A-Za-z]+?(?:市|州|区|县))/)
+  const match = text.match(/([一-龥A-Za-z]+?(?:市|州|区|县))/)
   return match != null ? String(match[1] || '').trim() : ''
 }
 
@@ -288,12 +291,12 @@ function trimToAreaOrStreet(textValue: string): string {
   if (streetMatch != null && String(streetMatch[1] || '').trim() != '') {
     return String(streetMatch[1] || '').trim()
   }
-  const areaMatch = text.match(/^(.*?(?:广场|商圈|园区|中心|万达|万象汇|天地|城))/)
+  const areaMatch = text.match(/^(.*?(?:广场|商圈|园区|中心|万达|万象城|天地|城))/)
   if (areaMatch != null && String(areaMatch[1] || '').trim() != '') {
     return String(areaMatch[1] || '').trim()
   }
   return text
-    .replace(/([0-9０-９一二三四五六七八九十百千]+(?:号|弄|栋|幢|单元|室|楼|层).*)$/, '')
+    .replace(/([0-9一-龥]+(?:号|弄|栋|幢|单元|室|楼|层).*)$/, '')
     .replace(/[，,].*$/, '')
     .trim()
 }
@@ -507,6 +510,30 @@ function shouldShowError(message: string): boolean {
   return attemptedSubmit.value && message != ''
 }
 
+function handlePublishLimitResponse(response: PublishResponse): boolean {
+  const code = String(response.code || '').trim()
+  if (code == PUBLISH_LIMIT_DAILY) {
+    uni.showToast({ title: '今日发帖次数已达上限，请明天再来', icon: 'none' })
+    return true
+  }
+  if (code == PUBLISH_LIMIT_ACTIVE) {
+    uni.showModal({
+      title: '发布受限',
+      content: response.message || '当前正在招募的动态已达上限，请先去管理页结束旧动态',
+      confirmText: '去管理页',
+      cancelText: '我知道了',
+      success: (result) => {
+        if (!result.confirm) {
+          return
+        }
+        uni.navigateTo({ url: '/pages/user/my-companions' })
+      }
+    })
+    return true
+  }
+  return false
+}
+
 function normalizeImageUrlProtocol(url: string): string {
   const text = String(url || '').trim()
   if (!text.startsWith('http://')) {
@@ -565,7 +592,7 @@ function pickLocation() {
     const amapConfig = getWebAmapConfig()
     console.error('[social-publish] Map key not configured', amapConfig)
     enableManualLocation()
-    uni.showToast({ title: 'Map key not configured，请先配置高德 Key', icon: 'none' })
+    uni.showToast({ title: '地图配置缺失，请先配置高德 Key', icon: 'none' })
     return
   }
 
@@ -585,7 +612,7 @@ function pickLocation() {
         console.error('[social-publish] chooseLocation failed:', error)
         if (isMapProviderMissingError(error)) {
           enableManualLocation()
-          uni.showToast({ title: 'Map key not configured，请手动填写位置', icon: 'none' })
+          uni.showToast({ title: '地图配置缺失，请手动填写位置', icon: 'none' })
           return
         }
         if (isMapPluginMissingError(error)) {
@@ -765,6 +792,9 @@ async function onSubmit() {
     })
 
     if (res.success !== true) {
+      if (handlePublishLimitResponse(res)) {
+        return
+      }
       uni.showToast({ title: res.message || '发布失败', icon: 'none' })
       return
     }
@@ -1091,3 +1121,4 @@ async function onSubmit() {
   letter-spacing: 1px;
 }
 </style>
+

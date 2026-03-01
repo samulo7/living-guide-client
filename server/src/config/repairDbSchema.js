@@ -185,10 +185,16 @@ async function ensureCompanionsTable() {
       location_json TEXT NULL,
       images_json TEXT NULL,
       contact VARCHAR(120) NOT NULL DEFAULT '',
+      status TINYINT NOT NULL DEFAULT 1,
+      edited_at DATETIME NULL,
+      edit_count INT NOT NULL DEFAULT 0,
+      contact_click_count INT NOT NULL DEFAULT 0,
+      favorite_count INT NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
       KEY idx_companions_user_id (user_id),
+      KEY idx_companions_status (status),
       KEY idx_companions_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `)
@@ -282,11 +288,29 @@ async function repairCompanionsTable() {
   await ensureColumn('companions', 'location_json', 'ALTER TABLE companions ADD COLUMN location_json TEXT NULL AFTER tags')
   await ensureColumn('companions', 'images_json', 'ALTER TABLE companions ADD COLUMN images_json TEXT NULL AFTER location_json')
   await ensureColumn('companions', 'contact', "ALTER TABLE companions ADD COLUMN contact VARCHAR(120) NOT NULL DEFAULT '' AFTER images_json")
+  await ensureColumn('companions', 'status', 'ALTER TABLE companions ADD COLUMN status TINYINT NOT NULL DEFAULT 1 AFTER contact')
+  await ensureColumn('companions', 'edited_at', 'ALTER TABLE companions ADD COLUMN edited_at DATETIME NULL AFTER status')
+  await ensureColumn('companions', 'edit_count', 'ALTER TABLE companions ADD COLUMN edit_count INT NOT NULL DEFAULT 0 AFTER edited_at')
+  await ensureColumn(
+    'companions',
+    'contact_click_count',
+    'ALTER TABLE companions ADD COLUMN contact_click_count INT NOT NULL DEFAULT 0 AFTER edit_count'
+  )
+  await ensureColumn(
+    'companions',
+    'favorite_count',
+    'ALTER TABLE companions ADD COLUMN favorite_count INT NOT NULL DEFAULT 0 AFTER contact_click_count'
+  )
   await ensureColumn(
     'companions',
     'updated_at',
     'ALTER TABLE companions ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
   )
+
+  await pool.query('UPDATE companions SET status = 1 WHERE status IS NULL')
+  await pool.query('UPDATE companions SET edit_count = 0 WHERE edit_count IS NULL')
+  await pool.query('UPDATE companions SET contact_click_count = 0 WHERE contact_click_count IS NULL')
+  await pool.query('UPDATE companions SET favorite_count = 0 WHERE favorite_count IS NULL')
 
   if (columns.has('nickname')) {
     await pool.query("ALTER TABLE companions MODIFY COLUMN nickname VARCHAR(80) NOT NULL DEFAULT ''")

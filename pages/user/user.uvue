@@ -16,51 +16,51 @@
       </view>
 
       <view v-if="!isLogged" class="guest-placeholder-wrap">
-        <text class="guest-placeholder-text">登录后查看我的收藏</text>
+        <text class="guest-placeholder-text">{{ '登录后查看我的收藏' }}</text>
       </view>
 
       <view v-else>
         <view class="stats-panel">
-          <view class="stat-item">
-            <text class="stat-label">我的发布</text>
+          <view class="stat-item stat-item-clickable" hover-class="stat-item-hover" @click="goMyCompanions">
+            <text class="stat-label">{{ '我的发布' }}</text>
             <text class="stat-value">{{ stats.published }}</text>
           </view>
           <view class="stat-item">
-            <text class="stat-label">我的收藏</text>
+            <text class="stat-label">{{ '我的收藏' }}</text>
             <text class="stat-value">{{ stats.favorites }}</text>
           </view>
           <view class="stat-item">
-            <text class="stat-label">浏览记录</text>
+            <text class="stat-label">{{ '浏览记录' }}</text>
             <text class="stat-value">{{ stats.history }}</text>
           </view>
         </view>
 
         <view class="section-head">
-          <text class="section-title">我的收藏</text>
+          <text class="section-title">{{ '我的收藏' }}</text>
         </view>
 
         <view v-if="loadingFavorites" class="state-wrap">
-          <text class="state-text">正在加载收藏房源...</text>
+          <text class="state-text">{{ '正在加载收藏房源...' }}</text>
         </view>
 
         <view v-else-if="favoriteList.length == 0" class="state-wrap">
-          <text class="state-text">你还没有收藏房源，去安家大厅看看</text>
+          <text class="state-text">{{ '你还没有收藏房源，去安家大厅看看' }}</text>
         </view>
 
         <view v-else class="card-list">
           <view class="house-card" v-for="(room, index) in favoriteList" :key="room.id" @click="goDetail(room.id)">
             <view class="card-image-wrap">
               <image class="card-image" :src="coverUrl(room.cover_image)" mode="aspectFill"></image>
-              <text class="green-badge">已收藏</text>
+              <text class="green-badge">{{ '已收藏' }}</text>
               <view class="remove-favorite-btn" @click.stop="onRemoveFavorite(room.id, index)">
-                <text class="remove-favorite-text">×</text>
+                <text class="remove-favorite-text">x</text>
               </view>
-              <text class="price-badge">¥{{ priceText(room.price) }}/月</text>
+              <text class="price-badge">{{ '¥' }}{{ priceText(room.price) }}/{{ '月' }}</text>
             </view>
 
             <view class="card-content">
               <text class="card-title">{{ room.title }}</text>
-              <text class="card-location">📍 {{ room.city_name }} · {{ room.district }}</text>
+              <text class="card-location">{{ '位置：' }}{{ room.city_name }} {{ '·' }} {{ room.district }}</text>
               <view class="tag-row" v-if="splitTags(room.tags).length > 0">
                 <text class="tag-chip" v-for="(tag, index) in splitTags(room.tags).slice(0, 3)" :key="room.id + '-' + index">
                   {{ tag }}
@@ -71,7 +71,7 @@
         </view>
 
         <view class="logout-btn" @click="onLogout">
-          <text class="logout-text">退出登录</text>
+          <text class="logout-text">{{ '退出登录' }}</text>
         </view>
       </view>
 
@@ -104,6 +104,12 @@ interface FavoriteToggleResponse {
   message?: string
 }
 
+interface SocialMyResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
+}
+
 interface ProfileInfo {
   username: string
   tagline: string
@@ -124,6 +130,7 @@ interface HouseItem {
 const TOKEN_KEY = 'token'
 const USER_INFO_KEY = 'userInfo'
 const REFRESH_FAVORITES_EVENT = 'REFRESH_FAVORITES'
+const REFRESH_USER_STATS_EVENT = 'REFRESH_USER_STATS'
 
 const isLogged = ref(false)
 const userInfo = ref<ProfileInfo | null>(null)
@@ -141,7 +148,7 @@ function splitTags(rawTags: string): string[] {
     return []
   }
   return text
-    .split(/[、,，|]/)
+    .split(/[、，,]/)
     .map((item) => item.trim())
     .filter((item) => item != '')
 }
@@ -260,8 +267,28 @@ async function fetchFavorites() {
   updateFavoriteCount()
 }
 
+async function fetchPublishedCount() {
+  const payload = await request<SocialMyResponse>({
+    url: '/api/social/my',
+    method: 'GET'
+  })
+  if (payload.ok !== true || !Array.isArray(payload.data)) {
+    throw new Error(payload.message || 'my social list is empty')
+  }
+  stats.value.published = payload.data.length
+}
+
 function goDetail(id: string) {
   uni.navigateTo({ url: '/pages/sublet/detail?id=' + id })
+}
+
+function goMyCompanions() {
+  if (!hasToken()) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  uni.navigateTo({ url: '/pages/user/my-companions' })
 }
 
 async function onRemoveFavorite(houseId: string, index: number) {
@@ -320,7 +347,7 @@ function onLogout() {
       }
       uni.clearStorageSync()
       resetGuestState()
-      uni.showToast({ title: '已退出', icon: 'none' })
+      uni.showToast({ title: '已退出登录', icon: 'none' })
     }
   })
 }
@@ -343,7 +370,7 @@ async function refreshUserCenter() {
 
   loadingFavorites.value = true
   try {
-    await Promise.all([fetchProfile(), fetchFavorites()])
+    await Promise.all([fetchProfile(), fetchFavorites(), fetchPublishedCount()])
   } catch (error) {
     console.error('[user] load data failed:', error)
     if (userInfo.value == null) {
@@ -359,15 +386,28 @@ async function onRefreshFavorites() {
     return
   }
   try {
-    await fetchFavorites()
+    await Promise.all([fetchFavorites(), fetchPublishedCount()])
   } catch (error) {
     console.error('[user] refresh favorites failed:', error)
   }
 }
 
+async function onRefreshUserStats() {
+  if (!hasToken()) {
+    return
+  }
+  try {
+    await fetchPublishedCount()
+  } catch (error) {
+    console.error('[user] refresh publish count failed:', error)
+  }
+}
+
 onLoad(async () => {
   uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$off(REFRESH_USER_STATS_EVENT, onRefreshUserStats)
   uni.$on(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$on(REFRESH_USER_STATS_EVENT, onRefreshUserStats)
 
   if (!hasToken()) {
     resetGuestState()
@@ -386,6 +426,7 @@ onShow(() => {
 
 onUnload(() => {
   uni.$off(REFRESH_FAVORITES_EVENT, onRefreshFavorites)
+  uni.$off(REFRESH_USER_STATS_EVENT, onRefreshUserStats)
 })
 </script>
 
@@ -469,6 +510,15 @@ onUnload(() => {
 .stat-item {
   flex: 1;
   align-items: center;
+}
+
+.stat-item-clickable {
+  border-radius: 12px;
+  padding: 6px 0;
+}
+
+.stat-item-hover {
+  background-color: #edf8f1;
 }
 
 .stat-label {
@@ -626,3 +676,4 @@ onUnload(() => {
   font-weight: 500;
 }
 </style>
+

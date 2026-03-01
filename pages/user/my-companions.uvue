@@ -1,0 +1,403 @@
+<template>
+  <view class="page">
+    <scroll-view class="main-scroll" direction="vertical">
+      <view class="hero">
+        <text class="hero-title">{{ '\u6211\u7684\u53d1\u5e03' }}</text>
+      </view>
+
+      <view class="feed-section">
+        <view v-if="loading" class="state-wrap">
+          <text class="state-text">{{ '\u6b63\u5728\u52a0\u8f7d...' }}</text>
+        </view>
+
+        <view v-else-if="companions.length == 0" class="state-wrap">
+          <text class="state-text">{{ '\u8fd8\u6ca1\u6709\u53d1\u5e03' }}</text>
+        </view>
+
+        <view v-else>
+          <social-post-card
+            v-for="item in companions"
+            :key="item.id"
+            :item="item"
+            :show-actions="true"
+            :manage-mode="true"
+            :deleting="deletingId == item.id"
+            :completing="completingId == item.id"
+            @click="goDetail(item.id)"
+            @edit="onEdit(item.id)"
+            @delete="onDelete(item.id)"
+            @complete="onComplete(item.id)"
+          ></social-post-card>
+        </view>
+      </view>
+
+      <view style="height: 16px;"></view>
+    </scroll-view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import SocialPostCard from '../../components/SocialPostCard.uvue'
+import { request } from '../../utils/request'
+
+interface SocialListResponse {
+  ok: boolean
+  data?: Record<string, unknown>[]
+  message?: string
+}
+
+interface ActionResponse {
+  ok: boolean
+  message?: string
+}
+
+interface CompanionLocation {
+  name: string
+  address: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+interface CompanionItem {
+  id: string
+  nickname: string
+  avatar: string
+  title: string
+  content: string
+  tags: string[]
+  location: CompanionLocation | null
+  images: string[]
+  status: number
+  created_at: string
+  created_at_text: string
+  local_completed_at?: number
+}
+
+const TOKEN_KEY = 'token'
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const REFRESH_USER_STATS_EVENT = 'REFRESH_USER_STATS'
+
+const loading = ref(true)
+const companions = ref<CompanionItem[]>([])
+const deletingId = ref('')
+const completingId = ref('')
+
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags.map((item) => String(item || '').trim()).filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[\u3001\uff0c,|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function parseLocation(rawLocation: unknown): CompanionLocation | null {
+  const source = parseApiPayload<Record<string, unknown>>(rawLocation)
+  if (source == null) {
+    return null
+  }
+
+  const name = String(source.name || '').trim()
+  const address = String(source.address || '').trim()
+  const city = String(source.city || '').trim()
+  const latitude = Number(source.latitude ?? NaN)
+  const longitude = Number(source.longitude ?? NaN)
+
+  if (name == '' && address == '' && city == '' && !Number.isFinite(latitude) && !Number.isFinite(longitude)) {
+    return null
+  }
+
+  return {
+    name,
+    address,
+    city,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  }
+}
+
+function parseImages(rawImages: unknown): string[] {
+  if (!Array.isArray(rawImages)) {
+    return []
+  }
+  return rawImages.map((item) => String(item || '').trim()).filter((item) => item != '')
+}
+
+function formatBeijingTimeLabel(raw: unknown): string {
+  const source = String(raw || '').trim()
+  if (source == '') {
+    return '\u521a\u521a'
+  }
+  const date = new Date(source)
+  if (!Number.isFinite(date.getTime())) {
+    return '\u521a\u521a'
+  }
+
+  const text = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date)
+
+  return '\u5317\u4eac\u65f6\u95f4 ' + text.replace(/\//g, '-')
+}
+
+function mapCompanionRow(row: Record<string, unknown>): CompanionItem {
+  return {
+    id: String(row.id ?? ''),
+    nickname: String(row.nickname ?? '').trim() || '\u533f\u540d\u7528\u6237',
+    avatar: String(row.avatar ?? '').trim(),
+    title: String(row.title ?? '').trim(),
+    content: String(row.content ?? '').trim(),
+    tags: splitTags(row.tags),
+    location: parseLocation(row.location),
+    images: parseImages(row.images),
+    status: Number(row.status ?? 1),
+    created_at: String(row.created_at ?? '').trim(),
+    created_at_text: formatBeijingTimeLabel(row.created_at),
+    local_completed_at: 0
+  }
+}
+
+function statusRank(status: number): number {
+  if (status == 1) {
+    return 0
+  }
+  if (status == 2) {
+    return 1
+  }
+  return 2
+}
+
+function createdAtUnix(value: string): number {
+  const timestamp = new Date(String(value || '').trim()).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function idSortValue(id: string): number {
+  const value = Number.parseInt(String(id || '').trim(), 10)
+  return Number.isInteger(value) ? value : 0
+}
+
+function sortCompanions(list: CompanionItem[]): CompanionItem[] {
+  const copied = list.slice()
+  copied.sort((left, right) => {
+    const rankDiff = statusRank(left.status) - statusRank(right.status)
+    if (rankDiff != 0) {
+      return rankDiff
+    }
+
+    if (left.status == 2 && right.status == 2) {
+      const leftCompletedAt = Number(left.local_completed_at || 0)
+      const rightCompletedAt = Number(right.local_completed_at || 0)
+      if (leftCompletedAt != rightCompletedAt) {
+        return leftCompletedAt - rightCompletedAt
+      }
+    }
+
+    const createdDiff = createdAtUnix(right.created_at) - createdAtUnix(left.created_at)
+    if (createdDiff != 0) {
+      return createdDiff
+    }
+    return idSortValue(right.id) - idSortValue(left.id)
+  })
+  return copied
+}
+
+async function fetchMyCompanions() {
+  loading.value = true
+  try {
+    const payload = await request<SocialListResponse>({
+      url: '/api/social/my',
+      method: 'GET'
+    })
+    if (payload.ok !== true || !Array.isArray(payload.data)) {
+      throw new Error(payload.message || '\u5217\u8868\u4e3a\u7a7a')
+    }
+    companions.value = sortCompanions(payload.data.map((item) => mapCompanionRow(item)))
+  } catch (error) {
+    console.error('[my-companions] load failed:', error)
+    companions.value = []
+    uni.showToast({ title: '\u52a0\u8f7d\u5931\u8d25', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+function goDetail(id: string) {
+  const targetId = String(id || '').trim()
+  if (targetId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/detail?id=' + encodeURIComponent(targetId) })
+}
+
+function onEdit(id: string) {
+  const targetId = String(id || '').trim()
+  if (targetId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/social/edit?id=' + encodeURIComponent(targetId) })
+}
+
+async function onDelete(id: string) {
+  const targetId = String(id || '').trim()
+  if (targetId == '' || deletingId.value != '' || completingId.value != '') {
+    return
+  }
+
+  uni.showModal({
+    title: '\u786e\u8ba4\u5220\u9664',
+    content: '\u786e\u5b9a\u5220\u9664\u8fd9\u6761\u53d1\u5e03\u5417\uff1f',
+    confirmText: '\u5220\u9664',
+    cancelText: '\u53d6\u6d88',
+    success: async (res) => {
+      if (!res.confirm) {
+        return
+      }
+      deletingId.value = targetId
+      try {
+        const payload = await request<ActionResponse>({
+          url: '/api/social/' + encodeURIComponent(targetId) + '/delete',
+          method: 'POST'
+        })
+        if (payload.ok !== true) {
+          uni.showToast({ title: payload.message || '\u5220\u9664\u5931\u8d25', icon: 'none' })
+          return
+        }
+        companions.value = companions.value.filter((item) => item.id != targetId)
+        uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
+        uni.$emit(REFRESH_USER_STATS_EVENT)
+        uni.showToast({ title: '\u5df2\u5220\u9664', icon: 'none' })
+      } catch (error) {
+        console.error('[my-companions] delete failed:', error)
+        uni.showToast({ title: '\u5220\u9664\u5931\u8d25', icon: 'none' })
+      } finally {
+        deletingId.value = ''
+      }
+    }
+  })
+}
+
+async function onComplete(id: string) {
+  const targetId = String(id || '').trim()
+  if (targetId == '' || deletingId.value != '' || completingId.value != '') {
+    return
+  }
+
+  const target = companions.value.find((item) => item.id == targetId)
+  if (target == null || target.status == 2) {
+    return
+  }
+
+  completingId.value = targetId
+  try {
+    const payload = await request<ActionResponse>({
+      url: '/api/social/' + encodeURIComponent(targetId) + '/complete',
+      method: 'POST'
+    })
+    if (payload.ok !== true) {
+      uni.showToast({ title: payload.message || '\u64cd\u4f5c\u5931\u8d25', icon: 'none' })
+      return
+    }
+
+    const index = companions.value.findIndex((item) => item.id == targetId)
+    if (index >= 0) {
+      companions.value[index].status = 2
+      companions.value[index].local_completed_at = Date.now()
+    }
+    companions.value = sortCompanions(companions.value)
+    uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
+    uni.$emit(REFRESH_USER_STATS_EVENT)
+    uni.showToast({ title: '\u5df2\u7f6e\u4e3a\u5df2\u5b8c\u6210', icon: 'none' })
+  } catch (error) {
+    console.error('[my-companions] complete failed:', error)
+    uni.showToast({ title: '\u64cd\u4f5c\u5931\u8d25', icon: 'none' })
+  } finally {
+    completingId.value = ''
+  }
+}
+
+onLoad(() => {
+  if (!hasToken()) {
+    uni.showToast({ title: '\u8bf7\u5148\u767b\u5f55', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  fetchMyCompanions()
+})
+
+onShow(() => {
+  if (!hasToken()) {
+    return
+  }
+  fetchMyCompanions()
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f4f6f8;
+}
+
+.main-scroll {
+  height: 100%;
+}
+
+.hero {
+  padding: 18px 16px 6px;
+}
+
+.hero-title {
+  font-size: 28px;
+  color: #1f2937;
+  font-weight: 900;
+}
+
+.feed-section {
+  padding: 0 14px 0;
+}
+
+.state-wrap {
+  padding-top: 40px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+</style>

@@ -1,0 +1,687 @@
+<template>
+  <view class="page">
+    <scroll-view class="scroll" direction="vertical">
+      <view class="card">
+        <text class="title">{{ '\u7f16\u8f91\u642d\u5b50' }}</text>
+        <text class="hint">{{ modeHint }}</text>
+
+        <text class="label">{{ '\u6807\u9898' }}</text>
+        <input class="input" v-model="formTitle" :disabled="!canEditCore" maxlength="160"  :placeholder="'\u8bf7\u8f93\u5165\u6807\u9898'" />
+
+        <text class="label">{{ '\u5185\u5bb9' }}</text>
+        <textarea
+          class="textarea"
+          v-model="formContent"
+          :disabled="!canEdit"
+          maxlength="2000"
+           :placeholder="'\u8bf7\u8f93\u5165\u5185\u5bb9'"
+        />
+
+        <text class="label">{{ '\u6807\u7b7e\uff08\u9017\u53f7\u5206\u9694\uff09' }}</text>
+        <input class="input" v-model="formTagsText" :disabled="!canEditCore" maxlength="255"  :placeholder="'\u4f8b\uff1a\u770b\u623f,\u8fd0\u52a8'" />
+
+        <text class="label">{{ '\u57ce\u5e02' }}</text>
+        <input class="input" v-model="locationCity" :disabled="!canEditCore" maxlength="50"  :placeholder="'\u4f8b\uff1a\u6c88\u9633'" />
+
+        <text class="label">{{ '\u5730\u6807' }}</text>
+        <input class="input" v-model="locationName" :disabled="!canEditCore" maxlength="120"  :placeholder="'\u4f8b\uff1a\u4e2d\u8857'" />
+
+        <text class="label">{{ '\u5730\u5740' }}</text>
+        <input class="input" v-model="locationAddress" :disabled="!canEditCore" maxlength="160"  :placeholder="'\u4f8b\uff1a\u67d0\u67d0\u8def'" />
+
+        <view class="label-row">
+          <text class="label">{{ '\u56fe\u7247' }}</text>
+          <text class="counter">{{ imageCountText }}</text>
+        </view>
+        <view class="image-grid">
+          <view class="image-add" v-if="canEdit && imagePaths.length < 3" @click="chooseImages">
+            <text class="image-add-text">{{ '\u6dfb\u52a0' }}</text>
+          </view>
+          <view class="image-item" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
+            <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
+            <view class="remove-btn" v-if="canEdit" @click="removeImage(index)">
+              <text class="remove-btn-text">x</text>
+            </view>
+          </view>
+        </view>
+
+        <text class="label">{{ '\u8054\u7cfb\u65b9\u5f0f' }}</text>
+        <input class="input" v-model="formContact" :disabled="!canEdit" maxlength="120"  :placeholder="'\u5fae\u4fe1/\u7535\u8bdd/\u5907\u6ce8'" />
+
+        <view class="spacer"></view>
+      </view>
+    </scroll-view>
+
+    <view class="bottom">
+      <view class="btn republish-btn" v-if="!canEdit && canRepublish" @click="onRepublish">
+        <text class="btn-text">{{ '\u91cd\u65b0\u53d1\u5e03' }}</text>
+      </view>
+      <view class="btn save-btn" :class="{ 'btn-disabled': !canEdit || submitting || loading }" @click="onSubmit">
+        <text class="btn-text">{{ submitting ? '\u4fdd\u5b58\u4e2d...' : '\u4fdd\u5b58' }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
+
+interface EditPermissionData {
+  can_edit: boolean
+  mode: string
+  locked_fields: string[]
+  reason_code: string
+  reason: string
+  full_edit_deadline: string
+  status: number
+}
+
+interface EditPermissionResponse {
+  ok: boolean
+  data?: EditPermissionData
+  message?: string
+}
+
+interface SocialDetailResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface ActionResponse {
+  ok?: boolean
+  success?: boolean
+  id?: number
+  message?: string
+  code?: string
+}
+
+interface UploadImageResponse {
+  success?: boolean
+  path?: string
+  message?: string
+}
+
+interface CompanionLocation {
+  name: string
+  address: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const TOKEN_KEY = 'token'
+const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
+const REFRESH_USER_STATS_EVENT = 'REFRESH_USER_STATS'
+
+const postId = ref('')
+const loading = ref(false)
+const submitting = ref(false)
+const uploading = ref(false)
+
+const permission = ref<EditPermissionData>({
+  can_edit: false,
+  mode: 'none',
+  locked_fields: [],
+  reason_code: '',
+  reason: '',
+  full_edit_deadline: '',
+  status: 1
+})
+
+const formTitle = ref('')
+const formContent = ref('')
+const formTagsText = ref('')
+const formContact = ref('')
+const locationCity = ref('')
+const locationName = ref('')
+const locationAddress = ref('')
+const locationLat = ref<number | null>(null)
+const locationLng = ref<number | null>(null)
+const imagePaths = ref<string[]>([])
+
+const canEdit = computed((): boolean => permission.value.can_edit)
+const canEditCore = computed((): boolean => permission.value.can_edit && permission.value.mode == 'full')
+const canRepublish = computed((): boolean => Number(permission.value.status || 0) == 2)
+const imageCountText = computed((): string => String(imagePaths.value.length) + '/3')
+
+const modeHint = computed((): string => {
+  if (loading.value) {
+    return '\u6b63\u5728\u52a0\u8f7d...'
+  }
+  if (!permission.value.can_edit) {
+    return permission.value.reason || '\u5f53\u524d\u4e0d\u53ef\u7f16\u8f91'
+  }
+  if (permission.value.mode == 'full') {
+    return '\u5f53\u524d\u53ef\u5b8c\u6574\u7f16\u8f91'
+  }
+  return '\u5f53\u524d\u4ec5\u53ef\u90e8\u5206\u7f16\u8f91\uff08\u6807\u9898/\u6807\u7b7e/\u4f4d\u7f6e\u5df2\u9501\u5b9a\uff09'
+})
+
+function hasToken(): boolean {
+  return String(uni.getStorageSync(TOKEN_KEY) || '').trim() != ''
+}
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags.map((item) => String(item || '').trim()).filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[\u3001\uff0c,|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function parseLocation(rawLocation: unknown): CompanionLocation | null {
+  const source = parseApiPayload<Record<string, unknown>>(rawLocation)
+  if (source == null) {
+    return null
+  }
+  const name = String(source.name || '').trim()
+  const address = String(source.address || '').trim()
+  const city = String(source.city || '').trim()
+  const latitude = Number(source.latitude ?? NaN)
+  const longitude = Number(source.longitude ?? NaN)
+  if (name == '' && address == '' && city == '' && !Number.isFinite(latitude) && !Number.isFinite(longitude)) {
+    return null
+  }
+  return {
+    name,
+    address,
+    city,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  }
+}
+
+function parseImages(rawImages: unknown): string[] {
+  if (!Array.isArray(rawImages)) {
+    return []
+  }
+  return rawImages.map((item) => String(item || '').trim()).filter((item) => item != '')
+}
+
+function mapDetailToForm(row: Record<string, unknown>) {
+  formTitle.value = String(row.title || '').trim()
+  formContent.value = String(row.content || '').trim()
+  formTagsText.value = splitTags(row.tags).join(', ')
+  formContact.value = String(row.contact || '').trim()
+  const location = parseLocation(row.location)
+  locationCity.value = String(location?.city || '').trim()
+  locationName.value = String(location?.name || '').trim()
+  locationAddress.value = String(location?.address || '').trim()
+  locationLat.value = location?.latitude ?? null
+  locationLng.value = location?.longitude ?? null
+  imagePaths.value = parseImages(row.images).slice(0, 3)
+}
+
+function buildLocationFromForm(): CompanionLocation | null {
+  const city = locationCity.value.trim()
+  const name = locationName.value.trim()
+  const address = locationAddress.value.trim()
+  if (city == '' && name == '' && address == '') {
+    return null
+  }
+  return {
+    city,
+    name,
+    address,
+    latitude: locationLat.value,
+    longitude: locationLng.value
+  }
+}
+
+function normalizeImageUrlProtocol(url: string): string {
+  const text = String(url || '').trim()
+  if (!text.startsWith('http://')) {
+    return text
+  }
+  const host = text.slice('http://'.length).split('/')[0].toLowerCase()
+  if (
+    host.startsWith('localhost') ||
+    host.startsWith('127.') ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    host.startsWith('172.')
+  ) {
+    return text
+  }
+  return 'https://' + text.slice('http://'.length)
+}
+
+function imageUrl(pathValue: string): string {
+  const text = String(pathValue || '').trim()
+  if (text == '') {
+    return ''
+  }
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return normalizeImageUrlProtocol(text)
+  }
+  return normalizeImageUrlProtocol(buildApiUrl(text))
+}
+
+function authHeaders(): UTSJSONObject {
+  const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  const header = new UTSJSONObject()
+  if (token != '') {
+    header.set('Authorization', 'Bearer ' + token)
+  }
+  return header
+}
+
+async function uploadImage(filePath: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    uni.uploadFile({
+      url: buildApiUrl('/api/social/upload-image'),
+      filePath,
+      name: 'file',
+      header: authHeaders(),
+      success: (res) => {
+        if (res.statusCode != 200 && res.statusCode != 201) {
+          reject('\u4e0a\u4f20\u5931\u8d25')
+          return
+        }
+        const payload = parseApiPayload<UploadImageResponse>(res.data)
+        if (payload == null || payload.success !== true || String(payload.path || '').trim() == '') {
+          reject(payload?.message || '\u4e0a\u4f20\u8fd4\u56de\u65e0\u6548')
+          return
+        }
+        resolve(String(payload.path || '').trim())
+      },
+      fail: (error) => reject(error)
+    })
+  })
+}
+
+function removeImage(index: number) {
+  if (!canEdit.value || index < 0 || index >= imagePaths.value.length) {
+    return
+  }
+  imagePaths.value.splice(index, 1)
+}
+
+function chooseImages() {
+  if (!canEdit.value || uploading.value || submitting.value) {
+    return
+  }
+  const remain = Math.max(0, 3 - imagePaths.value.length)
+  if (remain <= 0) {
+    return
+  }
+
+  uni.chooseImage({
+    count: remain,
+    sizeType: ['compressed'],
+    sourceType: ['album', 'camera'],
+    success: async (res) => {
+      const paths = Array.isArray(res.tempFilePaths) ? res.tempFilePaths : []
+      if (paths.length == 0) {
+        return
+      }
+      uploading.value = true
+      try {
+        for (let i = 0; i < paths.length; i++) {
+          const uploaded = await uploadImage(String(paths[i] || ''))
+          if (uploaded != '') {
+            imagePaths.value.push(uploaded)
+          }
+          if (imagePaths.value.length >= 3) {
+            break
+          }
+        }
+      } catch (error) {
+        console.error('[social-edit] upload failed:', error)
+        uni.showToast({ title: '\u4e0a\u4f20\u5931\u8d25', icon: 'none' })
+      } finally {
+        uploading.value = false
+      }
+    }
+  })
+}
+
+async function fetchEditContext(id: string) {
+  loading.value = true
+  try {
+    const [permissionPayload, detailPayload] = await Promise.all([
+      request<EditPermissionResponse>({
+        url: '/api/social/' + encodeURIComponent(id) + '/edit-permission',
+        method: 'GET'
+      }),
+      request<SocialDetailResponse>({
+        url: '/api/social/detail/' + encodeURIComponent(id),
+        method: 'GET'
+      })
+    ])
+
+    if (permissionPayload.ok !== true || permissionPayload.data == null) {
+      throw new Error(permissionPayload.message || 'permission empty')
+    }
+    permission.value = permissionPayload.data
+
+    if (detailPayload.ok !== true || detailPayload.data == null) {
+      throw new Error(detailPayload.message || 'detail empty')
+    }
+    mapDetailToForm(detailPayload.data)
+  } catch (error) {
+    console.error('[social-edit] load failed:', error)
+    uni.showToast({ title: '\u52a0\u8f7d\u5931\u8d25', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+function buildSubmitPayload(): Record<string, unknown> | null {
+  if (!canEdit.value) {
+    return null
+  }
+  const content = formContent.value.trim()
+  if (content.length < 2 || content.length > 2000) {
+    uni.showToast({ title: '\u5185\u5bb9\u9700\u4e3a2-2000\u5b57', icon: 'none' })
+    return null
+  }
+
+  const payload: Record<string, unknown> = {
+    content,
+    images: imagePaths.value,
+    contact: formContact.value.trim()
+  }
+
+  if (canEditCore.value) {
+    const title = formTitle.value.trim()
+    if (title.length < 2 || title.length > 160) {
+      uni.showToast({ title: '\u6807\u9898\u9700\u4e3a2-160\u5b57', icon: 'none' })
+      return null
+    }
+    const tags = splitTags(formTagsText.value)
+    if (tags.length == 0) {
+      uni.showToast({ title: '\u8bf7\u81f3\u5c11\u9009\u62e9\u4e00\u4e2a\u6807\u7b7e', icon: 'none' })
+      return null
+    }
+    const location = buildLocationFromForm()
+    if (location == null) {
+      uni.showToast({ title: '\u8bf7\u586b\u5199\u4f4d\u7f6e', icon: 'none' })
+      return null
+    }
+    payload.title = title
+    payload.tags = tags
+    payload.location = location
+  }
+
+  return payload
+}
+
+async function onSubmit() {
+  if (!hasToken()) {
+    uni.showToast({ title: '\u8bf7\u5148\u767b\u5f55', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  if (!canEdit.value || submitting.value || loading.value || postId.value == '') {
+    return
+  }
+  const payload = buildSubmitPayload()
+  if (payload == null) {
+    return
+  }
+
+  submitting.value = true
+  try {
+    const response = await request<ActionResponse>({
+      url: '/api/social/' + encodeURIComponent(postId.value) + '/edit',
+      method: 'POST',
+      data: payload
+    })
+    if (response.ok !== true) {
+      uni.showToast({ title: response.message || '\u4fdd\u5b58\u5931\u8d25', icon: 'none' })
+      return
+    }
+    uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
+    uni.$emit(REFRESH_USER_STATS_EVENT)
+    uni.showToast({ title: '\u5df2\u4fdd\u5b58', icon: 'none' })
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 600)
+  } catch (error) {
+    console.error('[social-edit] submit failed:', error)
+    uni.showToast({ title: '\u4fdd\u5b58\u5931\u8d25', icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function onRepublish() {
+  if (!canRepublish.value || postId.value == '' || submitting.value) {
+    return
+  }
+  submitting.value = true
+  try {
+    const response = await request<ActionResponse>({
+      url: '/api/social/' + encodeURIComponent(postId.value) + '/republish',
+      method: 'POST'
+    })
+    if (response.ok !== true) {
+      uni.showToast({ title: response.message || '\u91cd\u53d1\u5931\u8d25', icon: 'none' })
+      return
+    }
+    uni.$emit(REFRESH_SOCIAL_LIST_EVENT)
+    uni.$emit(REFRESH_USER_STATS_EVENT)
+    uni.showToast({ title: '\u91cd\u65b0\u53d1\u5e03\u6210\u529f', icon: 'none' })
+    const newId = Number(response.id || 0)
+    if (Number.isInteger(newId) && newId > 0) {
+      uni.redirectTo({ url: '/pages/social/detail?id=' + encodeURIComponent(String(newId)) })
+      return
+    }
+    uni.navigateBack()
+  } catch (error) {
+    console.error('[social-edit] republish failed:', error)
+    uni.showToast({ title: '\u91cd\u53d1\u5931\u8d25', icon: 'none' })
+  } finally {
+    submitting.value = false
+  }
+}
+
+onLoad((options) => {
+  if (!hasToken()) {
+    uni.showToast({ title: '\u8bf7\u5148\u767b\u5f55', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return
+  }
+  const id = String(options?.id || '').trim()
+  if (id == '') {
+    uni.showToast({ title: '\u7f3a\u5c11\u53c2\u6570', icon: 'none' })
+    return
+  }
+  postId.value = id
+  fetchEditContext(id)
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f2f5f1;
+}
+
+.scroll {
+  height: 100%;
+  padding: 16px 14px 0;
+}
+
+.card {
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  padding: 14px;
+}
+
+.title {
+  font-size: 24px;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.label {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.label-row {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.counter {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.input {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid #d5dfe4;
+  background-color: #f8fafc;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.textarea {
+  min-height: 112px;
+  border-radius: 10px;
+  border: 1px solid #d5dfe4;
+  background-color: #f8fafc;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.image-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.image-add {
+  width: 94px;
+  height: 94px;
+  border-radius: 10px;
+  border: 1px dashed #94a3b8;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.image-add-text {
+  color: #475569;
+  font-size: 12px;
+}
+
+.image-item {
+  width: 94px;
+  height: 94px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.image-preview {
+  width: 100%;
+  height: 100%;
+}
+
+.remove-btn {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background-color: rgba(15, 23, 42, 0.6);
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn-text {
+  color: #ffffff;
+  font-size: 10px;
+}
+
+.spacer {
+  height: 110px;
+}
+
+.bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px calc(14px + constant(safe-area-inset-bottom));
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  background-color: rgba(242, 245, 241, 0.96);
+  border-top: 1px solid #dbe3df;
+}
+
+.btn {
+  height: 46px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn + .btn {
+  margin-top: 8px;
+}
+
+.save-btn {
+  background-color: #2563eb;
+}
+
+.republish-btn {
+  background-color: #16a34a;
+}
+
+.btn-disabled {
+  opacity: 0.58;
+}
+
+.btn-text {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+}
+</style>

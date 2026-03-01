@@ -1,0 +1,440 @@
+<template>
+  <view class="feed-card" :class="{ 'feed-card-completed': manageMode && item.status == 2 }" @click="onCardClick">
+    <view class="feed-head" v-if="!manageMode">
+      <view class="avatar-wrap">
+        <image v-if="item.avatar != ''" class="avatar-image" :src="item.avatar" mode="aspectFill"></image>
+        <view v-else class="avatar-fallback">
+          <text class="avatar-fallback-icon">U</text>
+        </view>
+      </view>
+
+      <view class="head-meta">
+        <view class="meta-row">
+          <text class="nickname">{{ item.nickname }}</text>
+          <text class="time-text">{{ item.created_at_text }}</text>
+        </view>
+        <text class="city-chip">{{ '\u4f4d\u7f6e\uff1a' }}{{ locationLabel }}</text>
+      </view>
+    </view>
+
+    <text class="card-title">{{ item.title }}</text>
+    <text class="card-content">{{ item.content }}</text>
+    <text class="location-line" v-if="manageMode">{{ '\u4f4d\u7f6e\uff1a' }}{{ compactLocationLabel }}</text>
+
+    <view class="cover-wrap" v-if="item.images.length > 0">
+      <image class="card-cover" :src="normalizeImageUrl(item.images[0])" mode="aspectFill"></image>
+      <text class="done-badge" v-if="manageMode && item.status == 2">{{ '\u5df2\u6210\u56e2' }}</text>
+    </view>
+
+    <view class="tag-row" v-if="item.tags.length > 0">
+      <text v-for="(tag, index) in item.tags" :key="item.id + '-' + index" :class="['tag-chip', 'tag-chip-' + String(index % 4)]">
+        {{ tag }}
+      </text>
+    </view>
+
+    <view class="action-row" v-if="showActions">
+      <view class="edit-btn" :class="{ 'action-disabled': deleting || completing || item.status == 2 }" @click.stop="onEdit">
+        <text class="edit-btn-text">{{ '\u7f16\u8f91' }}</text>
+      </view>
+      <view class="danger-btn" :class="{ 'action-disabled': deleting }" @click.stop="onDelete">
+        <text class="danger-btn-text">{{ deleting ? '\u5220\u9664\u4e2d...' : '\u5220\u9664' }}</text>
+      </view>
+      <view class="primary-btn" :class="{ 'action-disabled': completing || item.status == 2 }" @click.stop="onComplete">
+        <text class="primary-btn-text">{{ item.status == 2 ? '\u5df2\u6210\u56e2' : (completing ? '\u5904\u7406\u4e2d...' : '\u7f6e\u4e3a\u5df2\u5b8c\u6210') }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { buildApiUrl } from '../utils/api'
+
+interface CompanionLocation {
+  name: string
+  address: string
+  city: string
+  latitude: number | null
+  longitude: number | null
+}
+
+interface SocialPostItem {
+  id: string
+  nickname: string
+  avatar: string
+  title: string
+  content: string
+  tags: string[]
+  location: CompanionLocation | null
+  images: string[]
+  created_at_text: string
+  status: number
+}
+
+interface Props {
+  item: SocialPostItem
+  showActions?: boolean
+  deleting?: boolean
+  completing?: boolean
+  manageMode?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  showActions: false,
+  deleting: false,
+  completing: false,
+  manageMode: false
+})
+
+const emit = defineEmits<{
+  click: []
+  edit: []
+  delete: []
+  complete: []
+}>()
+
+const locationLabel = computed((): string => {
+  const city = String(props.item.location?.city || '').trim()
+  const name = String(props.item.location?.name || '').trim()
+  if (city != '' && name != '') {
+    return city + ' - ' + name
+  }
+  if (city != '') {
+    return city
+  }
+  if (name != '') {
+    return name
+  }
+  return '\u672a\u77e5'
+})
+
+const compactLocationLabel = computed((): string => {
+  const city = String(props.item.location?.city || '').trim()
+  const name = String(props.item.location?.name || '').trim()
+  const address = String(props.item.location?.address || '').trim()
+  let candidate = name != '' ? name : address
+
+  if (city != '') {
+    const cityPattern = new RegExp(escapeRegExp(city), 'g')
+    candidate = candidate.replace(cityPattern, '').trim()
+  }
+
+  candidate = stripRegionPrefix(candidate)
+  candidate = pickStreetOrLandmark(candidate)
+
+  if (candidate == '') {
+    candidate = pickStreetOrLandmark(stripRegionPrefix(address))
+  }
+
+  if (city != '' && candidate != '' && candidate != city) {
+    return city + '  ' + candidate
+  }
+  if (city != '') {
+    return city
+  }
+  if (candidate != '') {
+    return candidate
+  }
+  return '\u672a\u77e5'
+})
+
+function normalizeImageUrl(pathValue: string): string {
+  const text = String(pathValue || '').trim()
+  if (text == '') {
+    return ''
+  }
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+  return buildApiUrl(text)
+}
+
+function escapeRegExp(value: string): string {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripRegionPrefix(value: string): string {
+  let text = String(value || '').replace(/[\uff0c,]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (text == '') {
+    return ''
+  }
+
+  const patterns = [
+    /^[\u4e00-\u9fa5]{2,}(?:\u7701|\u81ea\u6cbb\u533a|\u7279\u522b\u884c\u653f\u533a)\s*/,
+    /^[\u4e00-\u9fa5]{2,}\u5e02\s*/,
+    /^[\u4e00-\u9fa5]{1,}(?:\u533a|\u53bf|\u65d7|\u76df|\u5dde)\s*/
+  ]
+
+  let changed = true
+  while (changed && text != '') {
+    changed = false
+    for (let i = 0; i < patterns.length; i++) {
+      const next = text.replace(patterns[i], '').trim()
+      if (next != text) {
+        text = next
+        changed = true
+      }
+    }
+  }
+  return text
+}
+
+function pickStreetOrLandmark(value: string): string {
+  const text = String(value || '').trim()
+  if (text == '') {
+    return ''
+  }
+
+  const marker = text.match(
+    /([\u4e00-\u9fa5A-Za-z0-9]{2,}(?:\u8def|\u8857|\u9053|\u5df7|\u5546\u5708|\u5e7f\u573a|\u4e2d\u5fc3|\u56ed\u533a|\u516c\u56ed|\u5730\u94c1\u7ad9|\u8f66\u7ad9|\u5927\u5b66|\u5b66\u9662|\u5c0f\u533a|\u793e\u533a))/
+  )
+  if (marker != null && String(marker[1] || '').trim() != '') {
+    return String(marker[1] || '').trim()
+  }
+
+  const parts = text.split(/[-\s]/).map((item) => item.trim()).filter((item) => item != '')
+  const tail = parts.length > 0 ? parts[parts.length - 1] : text
+  const compact = tail.replace(/[0-9\u4e00-\u9fa5]+(?:\u53f7|\u680b|\u5e62|\u5c42|\u5355\u5143|\u5ba4).*/, '').trim()
+  return compact != '' ? compact : tail
+}
+
+function onCardClick() {
+  emit('click')
+}
+
+function onDelete() {
+  if (props.deleting || props.completing) {
+    return
+  }
+  emit('delete')
+}
+
+function onEdit() {
+  if (props.deleting || props.completing || props.item.status == 2) {
+    return
+  }
+  emit('edit')
+}
+
+function onComplete() {
+  if (props.completing || props.deleting || props.item.status == 2) {
+    return
+  }
+  emit('complete')
+}
+</script>
+
+<style scoped>
+.feed-card {
+  margin-top: 12px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.feed-card-completed {
+  opacity: 0.7;
+}
+
+.feed-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.avatar-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  overflow: hidden;
+  background-color: #e5e7eb;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: #e5e7eb;
+}
+
+.avatar-fallback-icon {
+  font-size: 18px;
+}
+
+.head-meta {
+  flex: 1;
+  margin-left: 10px;
+}
+
+.meta-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nickname {
+  font-size: 15px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.time-text {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.city-chip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.card-title {
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 24px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.card-content {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #475569;
+}
+
+.location-line {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #556273;
+}
+
+.cover-wrap {
+  margin-top: 10px;
+  position: relative;
+}
+
+.card-cover {
+  width: 100%;
+  height: 168px;
+  border-radius: 12px;
+}
+
+.done-badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  font-size: 11px;
+  color: #14532d;
+  font-weight: 700;
+  background-color: rgba(220, 252, 231, 0.94);
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.tag-row {
+  margin-top: 12px;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  margin-right: 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+
+.tag-chip-0 {
+  color: #155e75;
+  background-color: #ecfeff;
+  border: 1px solid #a5f3fc;
+}
+
+.tag-chip-1 {
+  color: #7c2d12;
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.tag-chip-2 {
+  color: #166534;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.tag-chip-3 {
+  color: #1e3a8a;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.action-row {
+  margin-top: 10px;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.edit-btn {
+  height: 28px;
+  border-radius: 14px;
+  justify-content: center;
+  align-items: center;
+  background-color: transparent;
+  border: 1px solid #93c5fd;
+  padding: 0 12px;
+  margin-right: 8px;
+}
+
+.edit-btn-text {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.danger-btn {
+  height: 28px;
+  border-radius: 14px;
+  justify-content: center;
+  align-items: center;
+  background-color: transparent;
+  border: 1px solid #fecaca;
+  padding: 0 12px;
+  margin-right: 8px;
+}
+
+.danger-btn-text {
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.primary-btn {
+  height: 28px;
+  border-radius: 14px;
+  justify-content: center;
+  align-items: center;
+  background-color: transparent;
+  border: 1px solid #86efac;
+  padding: 0 12px;
+}
+
+.primary-btn-text {
+  color: #166534;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.action-disabled {
+  opacity: 0.58;
+}
+</style>

@@ -113,7 +113,7 @@ app.use('/api/companions', companionRoutes)
 app.use('/api/social/publish', (req, res, next) => {
   if (req.method == 'POST' && req.body != null && typeof req.body == 'object') {
     const contact = String(req.body.contact || '').trim()
-    req.body.contact = contact != '' ? contact : '私信联系'
+    req.body.contact = contact != '' ? contact : '\u79c1\u4fe1\u8054\u7cfb'
   }
   next()
 })

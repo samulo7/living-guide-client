@@ -64,9 +64,16 @@
       }
     },
     {
+      "path": "pages/social/edit",
+      "style": {
+        "navigationBarTitleText": "编辑搭子"
+      }
+    },
+    {
       "path": "pages/social/detail",
       "style": {
-        "navigationBarTitleText": "搭子详情"
+        "navigationBarTitleText": "搭子详情",
+        "navigationStyle": "custom"
       }
     },
     {
@@ -80,6 +87,12 @@
       "style": {
         "navigationBarTitleText": "我的基地",
         "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/user/my-companions",
+      "style": {
+        "navigationBarTitleText": "我的发布"
       }
     }
   ],

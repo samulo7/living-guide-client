@@ -84,6 +84,8 @@
 import { ref } from 'vue'
 import { request } from '../../utils/request'
 
+declare function onShow(callback: () => void): void
+
 interface ProfileResponse {
   ok: boolean
   data?: Record<string, unknown>

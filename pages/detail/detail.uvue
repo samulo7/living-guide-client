@@ -165,6 +165,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { CityItem } from '../../types/city'
+import { buildApiUrl } from '../../utils/api'
 
 interface CityDetailResponse {
   ok: boolean
@@ -187,8 +188,6 @@ interface CityHouseItem {
   price: number
   min_duration: string
 }
-
-const API_BASE_URL = 'http://localhost:3000'
 
 const emptyItem = {
   id: '', city: '', district: '', title: '',
@@ -235,7 +234,7 @@ function formatUpdateDate(): string {
 async function fetchCityDetail(id: string): Promise<CityItem> {
   return new Promise<CityItem>((resolve, reject) => {
     uni.request({
-      url: API_BASE_URL + '/api/cities/' + encodeURIComponent(id),
+      url: buildApiUrl('/api/cities/' + encodeURIComponent(id)),
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {
@@ -269,7 +268,7 @@ function mapCityHouseRow(row: Record<string, unknown>): CityHouseItem {
 async function fetchCityHouses(cityId: string): Promise<CityHouseItem[]> {
   return new Promise<CityHouseItem[]>((resolve, reject) => {
     uni.request({
-      url: API_BASE_URL + '/api/cities/' + encodeURIComponent(cityId) + '/houses',
+      url: buildApiUrl('/api/cities/' + encodeURIComponent(cityId) + '/houses'),
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {

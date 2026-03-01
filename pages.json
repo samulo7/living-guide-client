@@ -1,4 +1,4 @@
-{
+﻿{
   "pages": [
     {
       "path": "pages/index/index",
@@ -98,34 +98,45 @@
       {
         "pagePath": "pages/index/index",
         "text": "首页",
-        "iconPath": "static/tabbar/home.svg",
-        "selectedIconPath": "static/tabbar/home-active.svg"
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/sublet/index",
         "text": "安家",
-        "iconPath": "static/tabbar/house.svg",
-        "selectedIconPath": "static/tabbar/house-active.svg"
+        "iconPath": "static/tabbar/house.png",
+        "selectedIconPath": "static/tabbar/house-active.png"
       },
       {
         "pagePath": "pages/gigs/gigs",
         "text": "搞钱",
-        "iconPath": "static/tabbar/money.svg",
-        "selectedIconPath": "static/tabbar/money-active.svg"
+        "iconPath": "static/tabbar/money.png",
+        "selectedIconPath": "static/tabbar/money-active.png"
       },
       {
         "pagePath": "pages/social/social",
         "text": "搭子",
-        "iconPath": "static/tabbar/social.svg",
-        "selectedIconPath": "static/tabbar/social-active.svg"
+        "iconPath": "static/tabbar/social.png",
+        "selectedIconPath": "static/tabbar/social-active.png"
       },
       {
         "pagePath": "pages/user/user",
         "text": "我的",
-        "iconPath": "static/tabbar/user.svg",
-        "selectedIconPath": "static/tabbar/user-active.svg"
+        "iconPath": "static/tabbar/user.png",
+        "selectedIconPath": "static/tabbar/user-active.png"
       }
     ]
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "Used to choose location when publishing social posts"
+    }
+  },
+  "requiredPrivateInfos": [
+    "chooseLocation",
+    "getLocation"
+  ],
   "uniIdRouter": {}
 }
+
+

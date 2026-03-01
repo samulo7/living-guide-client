@@ -1,67 +1,109 @@
 <template>
   <view class="page">
-    <view class="form-card">
-      <text class="title">发布搭子</text>
+    <view class="bg-orb bg-orb-a"></view>
+    <view class="bg-orb bg-orb-b"></view>
+    <scroll-view class="form-scroll" direction="vertical">
+      <view class="form-card">
+        <text class="title">发布搭子</text>
 
-      <text class="label">标题</text>
-      <input
-        class="input"
-        v-model="formTitle"
-        maxlength="160"
-        placeholder="例如：周末一起看房+吃饭"
-      />
+        <text class="label">标题 <text class="required-star">*</text></text>
+        <input
+          class="input"
+          :class="{ 'field-invalid': shouldShowError(titleError) }"
+          v-model="formTitle"
+          maxlength="160"
+          placeholder="例如：周末一起看房/吃饭"
+        />
+        <text class="error-text" v-if="shouldShowError(titleError)">{{ titleError }}</text>
 
-      <text class="label">内容</text>
-      <textarea
-        class="textarea"
-        v-model="formContent"
-        maxlength="2000"
-        placeholder="写清楚时间、地点、你希望的搭子类型"
-      />
+        <text class="label">内容 <text class="required-star">*</text></text>
+        <textarea
+          class="textarea"
+          :class="{ 'field-invalid': shouldShowError(contentError) }"
+          v-model="formContent"
+          maxlength="2000"
+          placeholder="写清时间、地点、你希望的搭子类型"
+        />
+        <text class="error-text" v-if="shouldShowError(contentError)">{{ contentError }}</text>
 
-      <text class="label">标签（可多选）</text>
-      <view class="tag-selector">
-        <view
-          v-for="tag in TAG_OPTIONS"
-          :key="tag"
-          class="tag-option"
-          :class="{ 'tag-option-active': isTagSelected(tag) }"
-          @click="toggleTag(tag)"
-        >
-          <text class="tag-option-text">{{ tag }}</text>
-        </view>
-      </view>
-
-      <text class="label">位置（高德）</text>
-      <view class="location-card" @click="pickLocation">
-        <text class="location-main">{{ locationSummary }}</text>
-        <text class="location-sub">{{ locationAddressText }}</text>
-      </view>
-
-      <text class="label">图片（0-3 张）</text>
-      <view class="image-grid">
-        <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
-          <text class="image-add-plus">+</text>
-          <text class="image-add-text">添加</text>
-        </view>
-        <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
-          <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
-          <view class="image-remove" @click="removeImage(index)">
-            <text class="image-remove-text">×</text>
+        <text class="label">标签（可多选）</text>
+        <view class="tag-selector">
+          <view
+            v-for="tag in TAG_OPTIONS"
+            :key="tag"
+            class="tag-option"
+            :class="{ 'tag-option-active': isTagSelected(tag) }"
+            @click="toggleTag(tag)"
+          >
+            <text class="tag-option-text">{{ tag }}</text>
           </view>
         </view>
+        <text class="error-text" v-if="shouldShowError(tagsError)">{{ tagsError }}</text>
+
+        <text class="label">位置（需选） <text class="required-star">*</text></text>
+        <view class="location-card" :class="{ 'field-invalid': shouldShowError(locationError) }" @click="pickLocation">
+          <text class="location-main">{{ locationSummary }}</text>
+          <text class="location-sub">{{ locationAddressText }}</text>
+        </view>
+        <text class="error-text" v-if="shouldShowError(locationError)">{{ locationError }}</text>
+        <text class="location-fallback" @click="enableManualLocation">地图不可用？点此手动填写位置</text>
+        <view class="manual-location" v-if="manualLocationEnabled">
+          <input
+            class="input"
+            v-model="manualLocationCity"
+            maxlength="40"
+            placeholder="城市（如：沈阳）"
+          />
+          <input
+            class="input manual-location-gap"
+            v-model="manualLocationName"
+            maxlength="80"
+            placeholder="地点名称（如：皇姑万象汇）"
+          />
+          <input
+            class="input manual-location-gap"
+            v-model="manualLocationAddress"
+            maxlength="160"
+            placeholder="详细地址（可选）"
+          />
+          <view class="manual-location-save" @click="saveManualLocation">
+            <text class="manual-location-save-text">保存手动位置</text>
+          </view>
+        </view>
+
+        <view class="label-row">
+          <text class="label">图片（可选，最多 3 张）</text>
+          <text class="label-counter">{{ imageCountText }}</text>
+        </view>
+        <view class="image-grid">
+          <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
+            <text class="image-add-plus">+</text>
+            <text class="image-add-text">添加</text>
+          </view>
+          <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
+            <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
+            <view class="image-remove" @click="removeImage(index)">
+              <text class="image-remove-text">×</text>
+            </view>
+          </view>
+        </view>
+        <text class="helper-text">{{ imageHelperText }}</text>
+
+        <text class="label">联系方式（选填）</text>
+        <input
+          class="input"
+          v-model="formContact"
+          maxlength="120"
+          placeholder="例如：微信号 / 电话 / Telegram"
+        />
+
+        <view class="form-bottom-spacer"></view>
       </view>
-      <text class="helper-text">{{ uploadingImages ? '图片上传中...' : '最多可上传 3 张' }}</text>
+    </scroll-view>
 
-      <text class="label">联系方式（选填）</text>
-      <input
-        class="input"
-        v-model="formContact"
-        maxlength="120"
-        placeholder="例如：微信号 / 电话 / Telegram"
-      />
-
-      <view class="submit-btn" :class="{ 'submit-btn-disabled': submitting || uploadingImages }" @click="onSubmit">
+    <view class="submit-bar">
+      <text class="safety-tip">温馨提示：线下见面请选择公共场所，谨防诈骗</text>
+      <view class="submit-btn" :class="{ 'submit-btn-disabled': !canSubmit }" @click="onSubmit">
         <text class="submit-btn-text">{{ submitText }}</text>
       </view>
     </view>
@@ -71,6 +113,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
 
 interface PublishResponse {
   success?: boolean
@@ -92,7 +135,6 @@ interface SelectedLocation {
   longitude: number | null
 }
 
-const API_BASE_URL = 'http://localhost:3000'
 const TOKEN_KEY = 'token'
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
 const TAG_OPTIONS: string[] = [
@@ -114,6 +156,11 @@ const selectedLocation = ref<SelectedLocation | null>(null)
 const imagePaths = ref<string[]>([])
 const uploadingImages = ref(false)
 const submitting = ref(false)
+const manualLocationEnabled = ref(false)
+const manualLocationCity = ref('')
+const manualLocationName = ref('')
+const manualLocationAddress = ref('')
+const attemptedSubmit = ref(false)
 
 const normalizedTags = computed((): string[] => {
   return selectedTags.value.slice(0, 8)
@@ -124,9 +171,12 @@ const locationSummary = computed((): string => {
   if (location == null) {
     return '点击选择位置'
   }
-  const city = location.city.trim() != '' ? location.city.trim() : '未知城市'
-  const name = location.name.trim() != '' ? location.name.trim() : '未命名地标'
-  return `📍 ${city} · ${name}`
+  const name = location.name.trim()
+  if (name != '') {
+    return `📍 ${name}`
+  }
+  const city = location.city.trim()
+  return city != '' ? `📍 ${city}` : '📍 未命名位置'
 })
 
 const locationAddressText = computed((): string => {
@@ -134,7 +184,12 @@ const locationAddressText = computed((): string => {
   if (location == null) {
     return '将调用高德地图选点'
   }
-  return location.address.trim() != '' ? location.address.trim() : '未提供详细地址'
+  const address = location.address.trim()
+  if (address != '') {
+    return address
+  }
+  const city = location.city.trim()
+  return city != '' ? city : '未提供详细地址'
 })
 
 const submitText = computed((): string => {
@@ -145,6 +200,40 @@ const submitText = computed((): string => {
     return '发布中...'
   }
   return '立即发布'
+})
+
+const titleError = computed((): string => {
+  return formTitle.value.trim().length >= 2 ? '' : '标题至少 2 个字'
+})
+
+const contentError = computed((): string => {
+  return formContent.value.trim().length >= 2 ? '' : '内容至少 2 个字'
+})
+
+const tagsError = computed((): string => {
+  return normalizedTags.value.length > 0 ? '' : '请至少选择 1 个标签'
+})
+
+const locationError = computed((): string => {
+  return resolveLocationForSubmit() != null ? '' : '请选择活动位置'
+})
+
+const canSubmit = computed((): boolean => {
+  if (submitting.value || uploadingImages.value) {
+    return false
+  }
+  return titleError.value == '' && contentError.value == '' && tagsError.value == '' && locationError.value == ''
+})
+
+const imageCountText = computed((): string => {
+  return String(imagePaths.value.length) + '/3'
+})
+
+const imageHelperText = computed((): string => {
+  if (uploadingImages.value) {
+    return '图片上传中...'
+  }
+  return imagePaths.value.length > 0 ? '第一张将作为封面图展示' : '可选上传，最多 3 张'
 })
 
 function hasToken(): boolean {
@@ -178,21 +267,262 @@ function deriveCityFromAddress(address: string): string {
   return match != null ? String(match[1] || '').trim() : ''
 }
 
+function joinUniqueLocationParts(parts: string[]): string {
+  const unique: string[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const text = String(parts[i] || '').trim()
+    if (text == '' || unique.includes(text)) {
+      continue
+    }
+    unique.push(text)
+  }
+  return unique.join(' ')
+}
+
+function trimToAreaOrStreet(textValue: string): string {
+  const text = String(textValue || '').trim().replace(/\s+/g, '')
+  if (text == '') {
+    return ''
+  }
+  const streetMatch = text.match(/^(.*?(?:路|街|道|巷|大道|胡同|大街|步行街))/)
+  if (streetMatch != null && String(streetMatch[1] || '').trim() != '') {
+    return String(streetMatch[1] || '').trim()
+  }
+  const areaMatch = text.match(/^(.*?(?:广场|商圈|园区|中心|万达|万象汇|天地|城))/)
+  if (areaMatch != null && String(areaMatch[1] || '').trim() != '') {
+    return String(areaMatch[1] || '').trim()
+  }
+  return text
+    .replace(/([0-9０-９一二三四五六七八九十百千]+(?:号|弄|栋|幢|单元|室|楼|层).*)$/, '')
+    .replace(/[，,].*$/, '')
+    .trim()
+}
+
+function buildMaskedAreaFromChooseResult(result: Record<string, unknown>): string {
+  const district = String(result.district || '').trim()
+  const businessArea = String(result.businessArea || '').trim()
+  const street = String(result.street || '').trim()
+  const township = String(result.township || '').trim()
+  const rawAddress = String(result.address || '').trim()
+  const rawName = String(result.name || result.poiName || '').trim()
+  const areaOrStreet = trimToAreaOrStreet(businessArea || street || township || rawAddress || rawName)
+  return joinUniqueLocationParts([district, areaOrStreet]).trim()
+}
+
+function buildMaskedAddress(city: string, area: string, rawAddress: string): string {
+  const fallback = trimToAreaOrStreet(rawAddress)
+  return joinUniqueLocationParts([city, area != '' ? area : fallback]).trim()
+}
+
 function mapChooseLocationResult(result: Record<string, unknown>): SelectedLocation {
-  const name = String(result.name || '').trim()
-  const address = String(result.address || '').trim()
-  const cityRaw = String(result.city || result.province || '').trim()
-  const city = cityRaw != '' ? cityRaw : deriveCityFromAddress(address)
+  const rawAddress = String(result.address || '').trim()
+  const cityRaw = String(result.city || result.district || result.province || '').trim()
+  const city = cityRaw != '' ? cityRaw : deriveCityFromAddress(rawAddress)
+  const area = buildMaskedAreaFromChooseResult(result)
+  const maskedAddress = buildMaskedAddress(city, area, rawAddress)
   const latitude = Number(result.latitude ?? NaN)
   const longitude = Number(result.longitude ?? NaN)
 
   return {
-    name,
-    address,
+    name: area != '' ? area : (city != '' ? city + '周边' : '附近'),
+    address: maskedAddress,
     city,
     latitude: Number.isFinite(latitude) ? latitude : null,
     longitude: Number.isFinite(longitude) ? longitude : null
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value == 'object' ? (value as Record<string, unknown>) : null
+}
+
+function readNestedRecord(source: unknown, key: string): Record<string, unknown> | null {
+  const record = asRecord(source)
+  if (record == null) {
+    return null
+  }
+  return asRecord(record[key])
+}
+
+function isWebPlatform(): boolean {
+  try {
+    return String(uni.getSystemInfoSync().uniPlatform || '').toLowerCase() == 'web'
+  } catch (error) {
+    return false
+  }
+}
+
+function isPlaceholderValue(value: string): boolean {
+  const text = value.trim()
+  if (text == '') {
+    return true
+  }
+  return text.includes('这里填入') || text.includes('请填写')
+}
+
+function getWebAmapConfig(): { key: string; securityJsCode: string; detected: boolean } {
+  const globalObj = asRecord(globalThis)
+  const uniConfig =
+    readNestedRecord(globalObj, '__uniConfig') ||
+    readNestedRecord(globalObj, '__UNI_CONFIG__') ||
+    readNestedRecord(globalObj, '__uniappConfig')
+
+  if (uniConfig == null) {
+    return { key: '', securityJsCode: '', detected: false }
+  }
+
+  const sdkConfigs = readNestedRecord(uniConfig, 'sdkConfigs')
+  const maps = readNestedRecord(sdkConfigs, 'maps')
+  const amap = readNestedRecord(maps, 'amap')
+
+  return {
+    key: String(amap?.key || '').trim(),
+    securityJsCode: String(amap?.securityJsCode || '').trim(),
+    detected: amap != null
+  }
+}
+
+function hasValidWebAmapConfig(): boolean {
+  if (!isWebPlatform()) {
+    return true
+  }
+  const amapConfig = getWebAmapConfig()
+  if (!amapConfig.detected) {
+    // Some runtimes do not expose manifest config on global variables.
+    return true
+  }
+  return !isPlaceholderValue(amapConfig.key) && !isPlaceholderValue(amapConfig.securityJsCode)
+}
+
+function mapErrorText(error: unknown): string {
+  if (typeof error == 'string') {
+    return error
+  }
+  if (error != null && typeof error == 'object') {
+    const record = error as Record<string, unknown>
+    const errMsg = String(record.errMsg || '').trim()
+    if (errMsg != '') {
+      return errMsg
+    }
+    const message = String(record.message || '').trim()
+    if (message != '') {
+      return message
+    }
+  }
+  return ''
+}
+
+function isMapProviderMissingError(error: unknown): boolean {
+  const text = mapErrorText(error).toLowerCase()
+  if (text == '') {
+    return false
+  }
+  return (
+    text.includes('map key not configured') ||
+    text.includes('map provider not configured') ||
+    text.includes('uni-config-center/uni-map/config.js') ||
+    text.includes('sdkconfigs.maps.amap') ||
+    text.includes('securityjscode')
+  )
+}
+
+function isMapPluginMissingError(error: unknown): boolean {
+  const text = mapErrorText(error).toLowerCase()
+  if (text == '') {
+    return false
+  }
+  return (
+    text.includes('plugin') ||
+    text.includes('地图插件') ||
+    text.includes('amap is not defined') ||
+    text.includes('amap sdk') ||
+    text.includes('chooselocation:fail')
+  )
+}
+
+function isMapServiceSystemError(error: unknown): boolean {
+  const text = mapErrorText(error).toLowerCase()
+  if (text == '') {
+    return false
+  }
+  return text.includes('system_error') || text.includes('[uni-map-co]') || text.includes('unknown system error')
+}
+
+function isChooseLocationCanceled(error: unknown): boolean {
+  const text = mapErrorText(error).toLowerCase()
+  return text.includes('cancel')
+}
+
+function buildManualLocation(): SelectedLocation | null {
+  const city = manualLocationCity.value.trim()
+  const name = trimToAreaOrStreet(manualLocationName.value)
+  const address = trimToAreaOrStreet(manualLocationAddress.value)
+  if (city == '' && name == '' && address == '') {
+    return null
+  }
+  const resolvedName = name != '' ? name : (address != '' ? address : city)
+  const resolvedCity = city != '' ? city : deriveCityFromAddress(address)
+  return {
+    name: resolvedName,
+    address: joinUniqueLocationParts([resolvedCity, address != '' ? address : resolvedName]),
+    city: resolvedCity,
+    latitude: null,
+    longitude: null
+  }
+}
+
+function resolveLocationForSubmit(): SelectedLocation | null {
+  if (selectedLocation.value != null) {
+    return selectedLocation.value
+  }
+  return buildManualLocation()
+}
+
+function syncManualLocationFields(location: SelectedLocation | null) {
+  if (location == null) {
+    return
+  }
+  manualLocationCity.value = location.city
+  manualLocationName.value = location.name
+  manualLocationAddress.value = location.address
+}
+
+function enableManualLocation() {
+  manualLocationEnabled.value = true
+  syncManualLocationFields(selectedLocation.value)
+}
+
+function saveManualLocation(): boolean {
+  const location = buildManualLocation()
+  if (location == null) {
+    uni.showToast({ title: '请至少填写一项位置信息', icon: 'none' })
+    return false
+  }
+  selectedLocation.value = location
+  uni.showToast({ title: '已保存手动位置', icon: 'none' })
+  return true
+}
+
+function shouldShowError(message: string): boolean {
+  return attemptedSubmit.value && message != ''
+}
+
+function normalizeImageUrlProtocol(url: string): string {
+  const text = String(url || '').trim()
+  if (!text.startsWith('http://')) {
+    return text
+  }
+  const host = text.slice('http://'.length).split('/')[0].toLowerCase()
+  if (
+    host.startsWith('localhost') ||
+    host.startsWith('127.') ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    host.startsWith('172.')
+  ) {
+    return text
+  }
+  return 'https://' + text.slice('http://'.length)
 }
 
 function imageUrl(pathValue: string): string {
@@ -201,9 +531,9 @@ function imageUrl(pathValue: string): string {
     return ''
   }
   if (text.startsWith('http://') || text.startsWith('https://')) {
-    return text
+    return normalizeImageUrlProtocol(text)
   }
-  return API_BASE_URL + text
+  return normalizeImageUrlProtocol(buildApiUrl(text))
 }
 
 function isTagSelected(tag: string): boolean {
@@ -230,15 +560,56 @@ function pickLocation() {
   if (submitting.value || uploadingImages.value) {
     return
   }
-  uni.chooseLocation({
-    success: (res) => {
-      selectedLocation.value = mapChooseLocationResult(res as unknown as Record<string, unknown>)
-    },
-    fail: (error) => {
-      console.error('[social-publish] chooseLocation failed:', error)
-      uni.showToast({ title: '定位失败，请检查高德地图配置', icon: 'none' })
-    }
-  })
+
+  if (!hasValidWebAmapConfig()) {
+    const amapConfig = getWebAmapConfig()
+    console.error('[social-publish] Map key not configured', amapConfig)
+    enableManualLocation()
+    uni.showToast({ title: 'Map key not configured，请先配置高德 Key', icon: 'none' })
+    return
+  }
+
+  try {
+    uni.chooseLocation({
+      provider: 'amap',
+      success: (res) => {
+        const mapped = mapChooseLocationResult(res as unknown as Record<string, unknown>)
+        selectedLocation.value = mapped
+        manualLocationEnabled.value = false
+        syncManualLocationFields(mapped)
+      },
+      fail: (error) => {
+        if (isChooseLocationCanceled(error)) {
+          return
+        }
+        console.error('[social-publish] chooseLocation failed:', error)
+        if (isMapProviderMissingError(error)) {
+          enableManualLocation()
+          uni.showToast({ title: 'Map key not configured，请手动填写位置', icon: 'none' })
+          return
+        }
+        if (isMapPluginMissingError(error)) {
+          enableManualLocation()
+          uni.showToast({ title: '地图插件缺失，请手动填写位置', icon: 'none' })
+          return
+        }
+        if (isMapServiceSystemError(error)) {
+          const detail = mapErrorText(error).trim()
+          enableManualLocation()
+          uni.showToast({
+            title: detail != '' ? '地图服务异常：' + detail.slice(0, 18) : '地图服务异常（POI失败），请手动填写位置',
+            icon: 'none'
+          })
+          return
+        }
+        uni.showToast({ title: '定位失败，请稍后重试', icon: 'none' })
+      }
+    })
+  } catch (error) {
+    console.error('[social-publish] chooseLocation crashed:', error)
+    enableManualLocation()
+    uni.showToast({ title: '地图服务异常，请手动填写位置', icon: 'none' })
+  }
 }
 
 function removeImage(index: number) {
@@ -251,20 +622,20 @@ function removeImage(index: number) {
   imagePaths.value.splice(index, 1)
 }
 
-function authHeaders(): Record<string, string> {
+function authHeaders(): UTSJSONObject {
   const token = String(uni.getStorageSync(TOKEN_KEY) || '').trim()
+  const header = new UTSJSONObject()
   if (token == '') {
-    return {}
+    return header
   }
-  return {
-    Authorization: 'Bearer ' + token
-  }
+  header.set('Authorization', 'Bearer ' + token)
+  return header
 }
 
 async function uploadImage(filePath: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     uni.uploadFile({
-      url: API_BASE_URL + '/api/social/upload-image',
+      url: buildApiUrl('/api/social/upload-image'),
       filePath,
       name: 'file',
       header: authHeaders(),
@@ -335,6 +706,8 @@ async function chooseImages() {
 }
 
 async function onSubmit() {
+  attemptedSubmit.value = true
+
   if (!hasToken()) {
     uni.showToast({ title: '请先登录后再发布', icon: 'none' })
     uni.navigateTo({ url: '/pages/login/login' })
@@ -346,24 +719,33 @@ async function onSubmit() {
   const tags = normalizedTags.value
   const contact = formContact.value.trim()
 
-  if (title.length < 2) {
-    uni.showToast({ title: '标题至少 2 个字', icon: 'none' })
-    return
-  }
-  if (content.length < 2) {
-    uni.showToast({ title: '内容至少 2 个字', icon: 'none' })
-    return
-  }
-  if (tags.length == 0) {
-    uni.showToast({ title: '请至少选择 1 个标签', icon: 'none' })
-    return
-  }
-  if (selectedLocation.value == null) {
-    uni.showToast({ title: '请先选择位置', icon: 'none' })
+  if (!canSubmit.value) {
+    if (titleError.value != '') {
+      uni.showToast({ title: titleError.value, icon: 'none' })
+      return
+    }
+    if (contentError.value != '') {
+      uni.showToast({ title: contentError.value, icon: 'none' })
+      return
+    }
+    if (tagsError.value != '') {
+      uni.showToast({ title: tagsError.value, icon: 'none' })
+      return
+    }
+    if (locationError.value != '') {
+      uni.showToast({ title: locationError.value, icon: 'none' })
+      return
+    }
     return
   }
 
-  if (submitting.value || uploadingImages.value) {
+  const resolvedLocation = resolveLocationForSubmit()
+  if (resolvedLocation == null) {
+    return
+  }
+  selectedLocation.value = resolvedLocation
+
+  if (submitting.value || uploadingImages.value || selectedLocation.value == null) {
     return
   }
 
@@ -403,36 +785,93 @@ async function onSubmit() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  background-color: #f5f7f6;
-  padding: 18px 14px;
+  height: 100vh;
+  background-color: #f2f5f1;
+  position: relative;
+}
+
+.bg-orb {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0.4;
+  filter: blur(4px);
+}
+
+.bg-orb-a {
+  width: 220px;
+  height: 220px;
+  top: -70px;
+  right: -46px;
+  background-color: #d2f2dc;
+}
+
+.bg-orb-b {
+  width: 180px;
+  height: 180px;
+  bottom: 100px;
+  left: -60px;
+  background-color: #dce8ff;
+}
+
+.form-scroll {
+  height: 100%;
+  padding: 18px 14px 0;
 }
 
 .form-card {
+  position: relative;
   background-color: #ffffff;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+  border-radius: 20px;
+  padding: 18px 16px;
+  border: 1px solid #e7ece6;
+  box-shadow: 0 14px 32px rgba(17, 24, 39, 0.08);
 }
 
 .title {
-  font-size: 24px;
-  color: #0f172a;
+  font-size: 30px;
+  color: #12211a;
   font-weight: 900;
+  letter-spacing: 0.5px;
 }
 
 .label {
-  margin-top: 14px;
-  margin-bottom: 6px;
+  margin-top: 16px;
+  margin-bottom: 7px;
   font-size: 13px;
-  color: #4b5563;
+  color: #526061;
+  font-weight: 700;
+}
+
+.label-row {
+  margin-top: 16px;
+  margin-bottom: 7px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label-row .label {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.required-star {
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.label-counter {
+  font-size: 12px;
+  color: #526061;
+  font-weight: 700;
 }
 
 .input {
   height: 44px;
-  border-radius: 10px;
-  border: 1px solid #dbe3ea;
-  background-color: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #d5dfe4;
+  background-color: #f7faf8;
   padding: 0 12px;
   font-size: 14px;
   color: #0f172a;
@@ -440,12 +879,22 @@ async function onSubmit() {
 
 .textarea {
   min-height: 128px;
-  border-radius: 10px;
-  border: 1px solid #dbe3ea;
-  background-color: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #d5dfe4;
+  background-color: #f7faf8;
   padding: 10px 12px;
   font-size: 14px;
   color: #0f172a;
+}
+
+.field-invalid {
+  border-color: #dc2626;
+}
+
+.error-text {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #dc2626;
 }
 
 .tag-selector {
@@ -455,16 +904,16 @@ async function onSubmit() {
 
 .tag-option {
   margin-right: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background-color: #f8fafc;
-  padding: 6px 12px;
+  border: 1px solid #ccd6de;
+  background-color: #f7faf8;
+  padding: 6px 13px;
 }
 
 .tag-option-active {
-  border-color: #16a34a;
-  background-color: #ecfdf3;
+  border-color: #1f8e4f;
+  background-color: #eaf8ef;
 }
 
 .tag-option-text {
@@ -473,15 +922,15 @@ async function onSubmit() {
 }
 
 .tag-option-active .tag-option-text {
-  color: #166534;
+  color: #145c32;
   font-weight: 700;
 }
 
 .location-card {
-  border-radius: 12px;
-  border: 1px solid #d7e1ee;
-  background-color: #f8fafc;
-  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #d5e2d8;
+  background-color: #f6fbf7;
+  padding: 11px 12px;
 }
 
 .location-main {
@@ -493,7 +942,41 @@ async function onSubmit() {
 .location-sub {
   margin-top: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: #66727c;
+}
+
+.location-fallback {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #3f6fc8;
+  text-decoration: underline;
+}
+
+.manual-location {
+  margin-top: 8px;
+  border: 1px dashed #bdd2ff;
+  border-radius: 12px;
+  padding: 10px;
+  background-color: #f5f9ff;
+}
+
+.manual-location-gap {
+  margin-top: 8px;
+}
+
+.manual-location-save {
+  margin-top: 10px;
+  height: 40px;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: #2f67d0;
+}
+
+.manual-location-save-text {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .image-grid {
@@ -502,8 +985,8 @@ async function onSubmit() {
 }
 
 .image-cell {
-  width: 92px;
-  height: 92px;
+  width: 98px;
+  height: 98px;
   border-radius: 12px;
   overflow: hidden;
   margin-right: 10px;
@@ -518,9 +1001,10 @@ async function onSubmit() {
 }
 
 .image-add {
-  border: 1px dashed #9ca3af;
+  border: 1px dashed #95a3b6;
   align-items: center;
   justify-content: center;
+  background-color: #f8fbff;
 }
 
 .image-add-plus {
@@ -554,26 +1038,56 @@ async function onSubmit() {
 }
 
 .helper-text {
+  margin-top: 2px;
   font-size: 12px;
-  color: #64748b;
+  color: #728190;
+}
+
+.form-bottom-spacer {
+  height: 112px;
+}
+
+.submit-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px calc(16px + constant(safe-area-inset-bottom));
+  padding: 10px 14px calc(16px + env(safe-area-inset-bottom));
+  background-color: rgba(242, 245, 241, 0.96);
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: #dbe3df;
+}
+
+.safety-tip {
+  margin-bottom: 8px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #5f6e66;
+  text-align: center;
 }
 
 .submit-btn {
-  margin-top: 18px;
-  height: 46px;
-  border-radius: 12px;
+  height: 50px;
+  border-radius: 14px;
   align-items: center;
   justify-content: center;
-  background-color: #16a34a;
+  background-image: linear-gradient(135deg, #1f8e4f 0%, #2fa561 100%);
+  box-shadow: 0 10px 22px rgba(31, 142, 79, 0.28);
 }
 
 .submit-btn-disabled {
-  opacity: 0.72;
+  opacity: 0.56;
+  background-color: #9ab3a1;
+  background-image: none;
+  box-shadow: none;
 }
 
 .submit-btn-text {
   font-size: 16px;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 900;
+  letter-spacing: 1px;
 }
 </style>

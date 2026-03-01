@@ -76,6 +76,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
+
+declare function onShow(callback: () => void): void
 
 interface HouseListResponse {
   ok: boolean
@@ -110,7 +113,6 @@ interface FavoriteResponse {
   message?: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
 const TOKEN_KEY = 'token'
 
 const loading = ref(true)
@@ -155,7 +157,7 @@ async function fetchHouses(cityId: string): Promise<HouseItem[]> {
   return new Promise<HouseItem[]>((resolve, reject) => {
     const query = cityId != 'all' ? '?city_id=' + encodeURIComponent(cityId) : ''
     uni.request({
-      url: API_BASE_URL + '/api/houses' + query,
+      url: buildApiUrl('/api/houses' + query),
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {
@@ -288,14 +290,9 @@ async function onFavorite(houseId: string) {
       res.data?.isFavorited === '1'
 
     if (nextIsFavorited) {
-      favoriteMap.value = {
-        ...favoriteMap.value,
-        [id]: true
-      }
+      favoriteMap.value[id] = true
     } else {
-      const nextMap = { ...favoriteMap.value }
-      delete nextMap[id]
-      favoriteMap.value = nextMap
+      delete favoriteMap.value[id]
     }
 
     uni.$emit('REFRESH_FAVORITES')

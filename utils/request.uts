@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000'
+import { buildApiUrl } from './api'
 const TOKEN_KEY = 'token'
 const LEGACY_LOGIN_KEY = 'isLogged'
 const USER_INFO_KEY = 'userInfo'
@@ -12,7 +12,7 @@ function normalizeUrl(url: string): string {
     return text
   }
   if (text.startsWith('/api/')) {
-    return `${API_BASE_URL}${text}`
+    return buildApiUrl(text)
   }
   return text
 }

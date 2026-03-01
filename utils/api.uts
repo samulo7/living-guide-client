@@ -1,0 +1,34 @@
+// #ifdef H5
+// H5 dev uses Vite proxy so phone/LAN clients can call same-origin /api.
+export const API_BASE_URL = ''
+// #endif
+// #ifndef H5
+export const API_BASE_URL = 'http://localhost:3000'
+// #endif
+
+function normalizeBaseUrl(): string {
+  const base = String(API_BASE_URL || '').trim()
+  if (base.endsWith('/')) {
+    return base.slice(0, -1)
+  }
+  return base
+}
+
+export function buildApiUrl(path: string): string {
+  const base = normalizeBaseUrl()
+  const text = String(path || '').trim()
+
+  if (text == '') {
+    return base != '' ? base : '/'
+  }
+
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+
+  if (text.startsWith('/')) {
+    return base + text
+  }
+
+  return base + '/' + text
+}

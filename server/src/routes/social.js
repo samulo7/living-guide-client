@@ -11,6 +11,7 @@ const MAX_TAGS = 8
 const MAX_IMAGES = 3
 const MAX_CONTACT_LENGTH = 120
 const MAX_IMAGE_SIZE_BYTES = 6 * 1024 * 1024
+const DEFAULT_CONTACT = '私信联系'
 const SOCIAL_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/social')
 const SOCIAL_UPLOAD_PUBLIC_PREFIX = '/uploads/social/'
 
@@ -195,7 +196,7 @@ function mapCompanionRow(row) {
     title: String(row.title || '').trim(),
     content: String(row.content || '').trim(),
     tags: parseCompanionTags(row.tags),
-    contact: String(row.contact || '').trim(),
+    contact: String(row.contact || '').trim() || DEFAULT_CONTACT,
     city_name: String(location?.city || '').trim(),
     location,
     images,
@@ -245,7 +246,8 @@ router.post('/publish', authMiddleware, async (req, res) => {
 
   const title = String(req.body?.title || '').trim()
   const content = String(req.body?.content || '').trim()
-  const contact = String(req.body?.contact || '').trim()
+  const contactInput = String(req.body?.contact || '').trim()
+  const contact = contactInput != '' ? contactInput : DEFAULT_CONTACT
   const tags = parseTags(req.body?.tags)
   const location = parseLocation(req.body?.location)
   const images = parseImages(req.body?.images)

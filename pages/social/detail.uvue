@@ -66,6 +66,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
 
 interface SocialDetailResponse {
   ok: boolean
@@ -94,8 +95,6 @@ interface SocialDetailItem {
   created_at: string
   created_at_text: string
 }
-
-const API_BASE_URL = 'http://localhost:3000'
 
 const loading = ref(false)
 const post = ref<SocialDetailItem>({
@@ -242,7 +241,7 @@ function imageUrl(pathValue: string): string {
   if (text.startsWith('http://') || text.startsWith('https://')) {
     return text
   }
-  return API_BASE_URL + text
+  return buildApiUrl(text)
 }
 
 async function fetchDetail(id: string) {

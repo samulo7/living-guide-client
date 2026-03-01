@@ -81,6 +81,7 @@ import { ref, computed, onMounted } from 'vue'
 import CityCard from '../../components/CityCard.uvue'
 import type { CityItem } from '../../types/city'
 import rawCityData from '../../static/data/data.json'
+import { buildApiUrl } from '../../utils/api'
 
 type QuickFilterValue = 'all' | 'under500' | 'seaside' | 'mountain' | 'lake' | 'highspeed' | 'hospitalA' | 'verified'
 
@@ -94,7 +95,6 @@ const loading = ref(true)
 const currentFilter = ref<QuickFilterValue>('all')
 const keyword = ref('')
 const requesting = ref(false)
-const API_BASE_URL = 'http://localhost:3000'
 let latestRequestId = 0
 
 interface ApiCitiesResponse {
@@ -262,7 +262,7 @@ function filterLocalItems(items: CityItem[]): CityItem[] {
 async function fetchCitiesFromApi(): Promise<CityItem[]> {
   return new Promise<CityItem[]>((resolve, reject) => {
     uni.request({
-      url: `${API_BASE_URL}/api/cities${buildQueryString()}`,
+      url: buildApiUrl('/api/cities' + buildQueryString()),
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {

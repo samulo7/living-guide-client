@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { buildApiUrl } from '../../utils/api'
 
 interface JobListResponse {
   ok: boolean
@@ -74,8 +75,6 @@ interface JobItem {
   tags: string[]
   description: string
 }
-
-const API_BASE_URL = 'http://localhost:3000'
 
 const loading = ref(true)
 const jobList = ref<JobItem[]>([])
@@ -160,7 +159,7 @@ function contactBoss(job: JobItem) {
 async function fetchJobs(): Promise<JobItem[]> {
   return new Promise<JobItem[]>((resolve, reject) => {
     uni.request({
-      url: API_BASE_URL + '/api/jobs',
+      url: buildApiUrl('/api/jobs'),
       method: 'GET',
       success: (res) => {
         if (res.statusCode != 200) {

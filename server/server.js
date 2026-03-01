@@ -88,6 +88,12 @@ app.use(express.json())
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  const originalJson = res.json.bind(res)
+  res.json = (body) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    return originalJson(body)
+  }
   next()
 })
 
@@ -104,6 +110,13 @@ app.use('/api/cities', cityRoutes)
 app.use('/api/houses', houseRoutes)
 app.use('/api/jobs', jobRoutes)
 app.use('/api/companions', companionRoutes)
+app.use('/api/social/publish', (req, res, next) => {
+  if (req.method == 'POST' && req.body != null && typeof req.body == 'object') {
+    const contact = String(req.body.contact || '').trim()
+    req.body.contact = contact != '' ? contact : '私信联系'
+  }
+  next()
+})
 app.use('/api/social', socialRoutes)
 
 async function bootstrap() {

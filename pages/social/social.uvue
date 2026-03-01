@@ -106,6 +106,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
 
 interface SocialListResponse {
   ok: boolean
@@ -144,7 +145,6 @@ interface RadarNode {
   }
 }
 
-const API_BASE_URL = 'http://localhost:3000'
 const TOKEN_KEY = 'token'
 const REFRESH_SOCIAL_LIST_EVENT = 'REFRESH_SOCIAL_LIST'
 
@@ -301,15 +301,33 @@ function locationLabel(item: CompanionItem): string {
   return '位置待定'
 }
 
+function normalizeImageUrlProtocol(url: string): string {
+  const text = String(url || '').trim()
+  if (!text.startsWith('http://')) {
+    return text
+  }
+  const host = text.slice('http://'.length).split('/')[0].toLowerCase()
+  if (
+    host.startsWith('localhost') ||
+    host.startsWith('127.') ||
+    host.startsWith('10.') ||
+    host.startsWith('192.168.') ||
+    host.startsWith('172.')
+  ) {
+    return text
+  }
+  return 'https://' + text.slice('http://'.length)
+}
+
 function imageUrl(pathValue: string): string {
   const text = String(pathValue || '').trim()
   if (text == '') {
     return ''
   }
   if (text.startsWith('http://') || text.startsWith('https://')) {
-    return text
+    return normalizeImageUrlProtocol(text)
   }
-  return API_BASE_URL + text
+  return normalizeImageUrlProtocol(buildApiUrl(text))
 }
 
 function pingCompanion(nickname: string) {

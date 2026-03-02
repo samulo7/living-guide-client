@@ -37,6 +37,13 @@
       }
     },
     {
+      "path": "pages/money/detail",
+      "style": {
+        "navigationBarTitleText": "职位详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/sublet/index",
       "style": {
         "navigationBarTitleText": "安家大厅",

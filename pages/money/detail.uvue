@@ -1,0 +1,828 @@
+<template>
+  <view class="page">
+    <view class="nav-bar">
+      <view class="nav-side" @click="goBack">
+        <text class="nav-back">←</text>
+      </view>
+      <text class="nav-title">职位详情</text>
+      <view class="nav-side nav-more" @click="openMoreMenu">
+        <text class="nav-more-text">...</text>
+      </view>
+    </view>
+
+    <scroll-view class="scroll" direction="vertical">
+      <view class="hero">
+        <swiper class="hero-swiper" indicator-dots circular autoplay interval="3200" duration="420">
+          <swiper-item v-for="(img, index) in bannerImages" :key="img + '-' + String(index)">
+            <image class="hero-image" :src="img" mode="aspectFill"></image>
+          </swiper-item>
+        </swiper>
+      </view>
+
+      <view class="main-card">
+        <view class="warning-box">
+          <text class="warning-text">温馨提示：谨防招聘诈骗，切勿提前转账</text>
+        </view>
+
+        <text class="job-title">{{ detail.title }}</text>
+
+        <view class="salary-row">
+          <text class="salary-amount">{{ salaryAmount }}</text>
+          <text class="salary-unit" v-if="salaryUnit != ''">{{ salaryUnit }}</text>
+        </view>
+
+        <scroll-view class="tags-scroll" direction="horizontal" v-if="detail.tags.length > 0">
+          <view class="tags-row">
+            <view class="tag-chip" v-for="(tag, index) in detail.tags" :key="detail.id + '-' + String(index)">
+              <text class="tag-chip-text">{{ tag }}</text>
+            </view>
+          </view>
+        </scroll-view>
+
+        <view class="address-block">
+          <text class="address-label">工作地点</text>
+          <view class="address-main">
+            <text class="address-text">{{ compactAddress }}</text>
+            <view class="address-map-btn" @click.stop="openMapLocation">
+              <text class="address-map-icon">📍</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="company-row" v-if="detail.company != ''">
+          <text class="company-label">招聘方</text>
+          <text class="company-text">{{ detail.company }}</text>
+        </view>
+      </view>
+
+      <view class="desc-card">
+        <text class="desc-title">职位描述</text>
+        <text class="desc-text">{{ detail.description != '' ? detail.description : '暂无描述' }}</text>
+      </view>
+
+      <view v-if="loading" class="state-wrap">
+        <text class="state-text">加载中...</text>
+      </view>
+
+      <view style="height: 132px;"></view>
+    </scroll-view>
+
+    <view class="bottom-bar">
+      <view class="smart-btn" :class="smartButtonClass" @click="onSmartButtonClick">
+        <text class="smart-btn-text">{{ smartButtonText }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { request } from '../../utils/request'
+import { buildApiUrl } from '../../utils/api'
+
+interface JobDetailResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface JobTakedownResponse {
+  ok: boolean
+  data?: Record<string, unknown>
+  message?: string
+}
+
+interface JobLocation {
+  name: string
+  address: string
+  city: string
+  street: string
+  business_area: string
+  latitude: number | null
+  longitude: number | null
+}
+
+interface JobDetailItem {
+  id: string
+  title: string
+  salary: string
+  company: string
+  tags: string[]
+  description: string
+  contact: string
+  status: string
+  boss_id: number
+  city_name: string
+  images: string[]
+  location: JobLocation | null
+}
+
+const STATUS_ACTIVE = 'active'
+const STATUS_FILLED = 'filled'
+
+const loading = ref(false)
+const currentUserId = ref(0)
+
+const detail = ref<JobDetailItem>({
+  id: '',
+  title: '加载中...',
+  salary: '',
+  company: '',
+  tags: [],
+  description: '',
+  contact: '',
+  status: STATUS_ACTIVE,
+  boss_id: 0,
+  city_name: '',
+  images: [],
+  location: null
+})
+
+function parseApiPayload<T>(raw: unknown): T | null {
+  if (raw != null && typeof raw == 'object') {
+    return raw as T
+  }
+  if (typeof raw == 'string') {
+    const text = raw.trim()
+    if (text == '') {
+      return null
+    }
+    try {
+      return JSON.parse<T>(text)
+    } catch (error) {
+      return null
+    }
+  }
+  return null
+}
+
+function splitTags(rawTags: unknown): string[] {
+  if (Array.isArray(rawTags)) {
+    return rawTags.map((item) => String(item || '').trim()).filter((item) => item != '')
+  }
+  const text = String(rawTags || '').trim()
+  if (text == '') {
+    return []
+  }
+  return text
+    .split(/[\u3001\uff0c,|/]+/)
+    .map((item) => item.trim())
+    .filter((item) => item != '')
+}
+
+function parseLocation(rawLocation: unknown): JobLocation | null {
+  const source = parseApiPayload<Record<string, unknown>>(rawLocation)
+  if (source == null) {
+    return null
+  }
+
+  const name = String(source.name || '').trim()
+  const address = String(source.address || '').trim()
+  const city = String(source.city || '').trim()
+  const street = String(source.street || '').trim()
+  const businessArea = String(source.business_area || source.businessArea || '').trim()
+  const latitude = Number(source.latitude ?? source.lat ?? NaN)
+  const longitude = Number(source.longitude ?? source.lng ?? NaN)
+
+  if (name == '' && address == '' && city == '' && street == '' && businessArea == '' && !Number.isFinite(latitude) && !Number.isFinite(longitude)) {
+    return null
+  }
+
+  return {
+    name,
+    address,
+    city,
+    street,
+    business_area: businessArea,
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null
+  }
+}
+
+function parseImages(rawImages: unknown): string[] {
+  if (!Array.isArray(rawImages)) {
+    return []
+  }
+  return rawImages
+    .map((item) => String(item || '').trim())
+    .filter((item) => item != '')
+    .slice(0, 9)
+}
+
+function mapDetailRow(row: Record<string, unknown>): JobDetailItem {
+  return {
+    id: String(row.id || '').trim(),
+    title: String(row.title || '').trim(),
+    salary: String(row.salary || '').trim(),
+    company: String(row.company || '').trim(),
+    tags: splitTags(row.tags),
+    description: String(row.description || '').trim(),
+    contact: String(row.contact || '').trim(),
+    status: String(row.status || STATUS_ACTIVE).trim() == STATUS_FILLED ? STATUS_FILLED : STATUS_ACTIVE,
+    boss_id: Number(row.boss_id || 0),
+    city_name: String(row.city_name || '').trim(),
+    images: parseImages(row.images),
+    location: parseLocation(row.location)
+  }
+}
+
+function imageUrl(pathValue: string): string {
+  const text = String(pathValue || '').trim()
+  if (text == '') {
+    return ''
+  }
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    return text
+  }
+  return buildApiUrl(text)
+}
+
+const bannerImages = computed((): string[] => {
+  const mapped = detail.value.images.map((item) => imageUrl(item)).filter((item) => item != '')
+  if (mapped.length > 0) {
+    return mapped
+  }
+  return ['/static/images/1.jpg', '/static/images/2.jpg']
+})
+
+function parseSalaryDisplay(rawSalary: string): { amount: string; unit: string } {
+  const text = String(rawSalary || '').trim()
+  if (text == '') {
+    return { amount: '面议', unit: '' }
+  }
+  const slashIndex = text.indexOf('/')
+  if (slashIndex > 0) {
+    return {
+      amount: text.slice(0, slashIndex),
+      unit: text.slice(slashIndex)
+    }
+  }
+  return { amount: text, unit: '' }
+}
+
+const salaryAmount = computed((): string => parseSalaryDisplay(detail.value.salary).amount)
+const salaryUnit = computed((): string => parseSalaryDisplay(detail.value.salary).unit)
+
+function stripRegionPrefix(value: string): string {
+  let text = String(value || '').replace(/[\uff0c,]/g, '').replace(/\s+/g, '').trim()
+  if (text == '') {
+    return ''
+  }
+
+  const patterns = [
+    /^[\u4e00-\u9fa5]{2,}(?:\u7701|\u81ea\u6cbb\u533a|\u7279\u522b\u884c\u653f\u533a)/,
+    /^[\u4e00-\u9fa5]{2,}\u5e02/,
+    /^[\u4e00-\u9fa5]{1,}(?:\u533a|\u53bf|\u65d7|\u76df|\u5dde)/
+  ]
+
+  let changed = true
+  while (changed && text != '') {
+    changed = false
+    for (let i = 0; i < patterns.length; i++) {
+      const next = text.replace(patterns[i], '').trim()
+      if (next != text) {
+        text = next
+        changed = true
+      }
+    }
+  }
+  return text
+}
+
+function escapeRegExp(value: string): string {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function pickStreetOrLandmark(value: string, city: string): string {
+  let text = String(value || '').trim()
+  if (city != '') {
+    const cityPattern = new RegExp(escapeRegExp(city), 'g')
+    text = text.replace(cityPattern, '').trim()
+  }
+  if (text == '') {
+    return ''
+  }
+
+  const marker = text.match(
+    /([\u4e00-\u9fa5A-Za-z0-9]{2,}(?:\u8def|\u8857|\u9053|\u5df7|\u5546\u5708|\u5e7f\u573a|\u4e2d\u5fc3|\u56ed\u533a|\u516c\u56ed|\u5730\u94c1\u7ad9|\u8f66\u7ad9|\u5927\u5b66|\u5b66\u9662|\u5c0f\u533a|\u793e\u533a))/
+  )
+
+  if (marker != null && String(marker[1] || '').trim() != '') {
+    return String(marker[1] || '').trim()
+  }
+
+  const parts = text.split(/[-\s]/).map((item) => item.trim()).filter((item) => item != '')
+  const tail = parts.length > 0 ? parts[parts.length - 1] : text
+  const compact = tail.replace(/[0-9\u4e00-\u9fa5]+(?:\u53f7|\u680b|\u5e62|\u5c42|\u5355\u5143|\u5ba4).*/, '').trim()
+  return compact != '' ? compact : tail
+}
+
+const compactAddress = computed((): string => {
+  const location = detail.value.location
+  const city = String(location?.city || detail.value.city_name || '').trim()
+  const source = String(location?.street || location?.business_area || location?.name || location?.address || '').trim()
+  const shortText = pickStreetOrLandmark(stripRegionPrefix(source), city)
+
+  if (city != '' && shortText != '' && shortText != city) {
+    return city + '  ' + shortText
+  }
+  if (city != '') {
+    return city
+  }
+  if (shortText != '') {
+    return shortText
+  }
+  return '位置待补充'
+})
+
+const isOwner = computed((): boolean => {
+  return currentUserId.value > 0 && currentUserId.value == detail.value.boss_id
+})
+
+const isFilled = computed((): boolean => {
+  return detail.value.status == STATUS_FILLED
+})
+
+const smartButtonText = computed((): string => {
+  if (isOwner.value) {
+    return '管理职位'
+  }
+  if (isFilled.value) {
+    return '已招满'
+  }
+  return '联系老板'
+})
+
+const smartButtonClass = computed((): string => {
+  if (isOwner.value) {
+    return 'smart-btn-owner'
+  }
+  if (isFilled.value) {
+    return 'smart-btn-disabled'
+  }
+  return 'smart-btn-active'
+})
+
+function readCurrentUserId(): number {
+  const token = String(uni.getStorageSync('token') || '').trim()
+  if (token == '') {
+    return 0
+  }
+  const raw = uni.getStorageSync('userInfo')
+  if (raw == null || typeof raw != 'object') {
+    return 0
+  }
+  const id = Number((raw as Record<string, unknown>).id ?? 0)
+  return Number.isInteger(id) && id > 0 ? id : 0
+}
+
+function goBack() {
+  uni.navigateBack({
+    delta: 1,
+    fail: () => {
+      uni.switchTab({ url: '/pages/gigs/gigs' })
+    }
+  })
+}
+
+function openMoreMenu() {
+  uni.showActionSheet({
+    itemList: ['举报该职位'],
+    success: (result) => {
+      if (Number(result.tapIndex) == 0) {
+        uni.showToast({ title: '举报入口建设中', icon: 'none' })
+      }
+    }
+  })
+}
+
+function openMapWebFallback() {
+  const location = detail.value.location
+  const city = String(location?.city || detail.value.city_name || '').trim()
+  const place = String(location?.street || location?.business_area || location?.name || location?.address || compactAddress.value).trim()
+  const keyword = (city + ' ' + place).trim()
+
+  if (keyword == '') {
+    uni.showToast({ title: '暂无可用位置', icon: 'none' })
+    return
+  }
+
+  const url =
+    'https://uri.amap.com/search?keyword=' +
+    encodeURIComponent(keyword) +
+    '&city=' +
+    encodeURIComponent(city) +
+    '&coordinate=gaode&callnative=1'
+
+  uni.navigateTo({
+    url: '/pages/webview/webview?url=' + encodeURIComponent(url)
+  })
+}
+
+function openMapLocation() {
+  const location = detail.value.location
+  const lat = Number(location?.latitude ?? NaN)
+  const lng = Number(location?.longitude ?? NaN)
+
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    uni.openLocation({
+      latitude: lat,
+      longitude: lng,
+      name: String(location?.name || detail.value.title || '').trim(),
+      address: String(location?.address || compactAddress.value || '').trim(),
+      scale: 16,
+      fail: () => {
+        openMapWebFallback()
+      }
+    })
+    return
+  }
+
+  openMapWebFallback()
+}
+
+function copyBossContact() {
+  const contact = String(detail.value.contact || '').trim()
+  if (contact == '') {
+    uni.showToast({ title: '暂无联系方式', icon: 'none' })
+    return
+  }
+
+  uni.setClipboardData({
+    data: contact,
+    success: () => {
+      uni.showToast({ title: '联系方式已复制', icon: 'none' })
+    },
+    fail: () => {
+      uni.showToast({ title: contact, icon: 'none' })
+    }
+  })
+}
+
+async function takedownJob() {
+  const id = String(detail.value.id || '').trim()
+  if (id == '') {
+    return
+  }
+
+  uni.showLoading({ title: '处理中...', mask: true })
+  try {
+    const payload = await request<JobTakedownResponse>({
+      url: '/api/jobs/' + encodeURIComponent(id) + '/takedown',
+      method: 'POST'
+    })
+
+    if (payload.ok !== true) {
+      throw new Error(payload.message || 'takedown failed')
+    }
+
+    detail.value.status = STATUS_FILLED
+    uni.showToast({ title: '职位已下架', icon: 'none' })
+  } catch (error) {
+    console.error('[money-detail] takedown failed:', error)
+    uni.showToast({ title: '下架失败，请稍后重试', icon: 'none' })
+  } finally {
+    uni.hideLoading()
+  }
+}
+
+function openOwnerManageMenu() {
+  uni.showActionSheet({
+    itemList: ['下架职位'],
+    success: (result) => {
+      if (Number(result.tapIndex) == 0) {
+        takedownJob()
+      }
+    }
+  })
+}
+
+function onSmartButtonClick() {
+  if (loading.value) {
+    return
+  }
+
+  if (isOwner.value) {
+    openOwnerManageMenu()
+    return
+  }
+
+  if (isFilled.value) {
+    return
+  }
+
+  copyBossContact()
+}
+
+async function fetchDetail(id: string) {
+  loading.value = true
+  try {
+    const payload = await request<JobDetailResponse>({
+      url: '/api/jobs/' + encodeURIComponent(id),
+      method: 'GET'
+    })
+
+    if (payload.ok !== true || payload.data == null) {
+      throw new Error(payload.message || 'detail is empty')
+    }
+
+    detail.value = mapDetailRow(payload.data)
+  } catch (error) {
+    console.error('[money-detail] fetch failed:', error)
+    uni.showToast({ title: '职位详情加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
+  }
+}
+
+onLoad((options) => {
+  currentUserId.value = readCurrentUserId()
+  const id = String(options?.id || '').trim()
+  if (id == '') {
+    uni.showToast({ title: '缺少职位ID', icon: 'none' })
+    return
+  }
+  fetchDetail(id)
+})
+
+onShow(() => {
+  currentUserId.value = readCurrentUserId()
+})
+</script>
+
+<style scoped>
+.page {
+  height: 100vh;
+  background-color: #f2f4f7;
+}
+
+.nav-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  height: calc(44px + constant(safe-area-inset-top));
+  height: calc(44px + env(safe-area-inset-top));
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+  background-color: rgba(242, 244, 247, 0.96);
+  border-bottom: 1px solid #e6ebf2;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.nav-title {
+  font-size: 16px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.nav-side {
+  width: 36px;
+  height: 32px;
+  border-radius: 16px;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.nav-more {
+  width: 42px;
+}
+
+.nav-back {
+  font-size: 18px;
+  line-height: 18px;
+  color: #0f172a;
+  margin-top: -1px;
+}
+
+.nav-more-text {
+  font-size: 20px;
+  line-height: 20px;
+  color: #0f172a;
+  margin-top: -8px;
+}
+
+.scroll {
+  height: 100%;
+  padding-top: calc(44px + constant(safe-area-inset-top));
+  padding-top: calc(44px + env(safe-area-inset-top));
+}
+
+.hero {
+  height: 260px;
+  background-color: #0f172a;
+}
+
+.hero-swiper,
+.hero-image {
+  width: 100%;
+  height: 100%;
+}
+
+.main-card {
+  margin: -22px 14px 0;
+  border-radius: 18px;
+  background-color: #ffffff;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.warning-box {
+  border-radius: 10px;
+  padding: 9px 10px;
+  background-color: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.warning-text {
+  font-size: 12px;
+  line-height: 18px;
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.job-title {
+  margin-top: 12px;
+  font-size: 22px;
+  line-height: 30px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.salary-row {
+  margin-top: 10px;
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.salary-amount {
+  font-size: 32px;
+  line-height: 34px;
+  color: #dc2626;
+  font-weight: 900;
+}
+
+.salary-unit {
+  margin-left: 6px;
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.tags-scroll {
+  margin-top: 12px;
+  white-space: nowrap;
+}
+
+.tags-row {
+  flex-direction: row;
+}
+
+.tag-chip {
+  margin-right: 8px;
+  border-radius: 999px;
+  padding: 6px 11px;
+  background-color: #eef9f1;
+  border: 1px solid #b9e3c2;
+}
+
+.tag-chip-text {
+  font-size: 12px;
+  color: #166534;
+  font-weight: 700;
+}
+
+.address-block {
+  margin-top: 14px;
+}
+
+.address-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.address-main {
+  margin-top: 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.address-text {
+  flex: 1;
+  font-size: 14px;
+  color: #334155;
+  font-weight: 700;
+  padding-right: 8px;
+}
+
+.address-map-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  align-items: center;
+  justify-content: center;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.address-map-icon {
+  font-size: 16px;
+}
+
+.company-row {
+  margin-top: 12px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.company-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.company-text {
+  margin-left: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.desc-card {
+  margin: 12px 14px 0;
+  border-radius: 18px;
+  background-color: #ffffff;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.desc-title {
+  font-size: 15px;
+  color: #1e293b;
+  font-weight: 800;
+}
+
+.desc-text {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 24px;
+  color: #334155;
+}
+
+.state-wrap {
+  margin-top: 14px;
+  align-items: center;
+}
+
+.state-text {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px calc(16px + constant(safe-area-inset-bottom));
+  padding: 10px 14px calc(16px + env(safe-area-inset-bottom));
+  background-color: rgba(242, 244, 247, 0.96);
+  border-top: 1px solid #e6ebf2;
+}
+
+.smart-btn {
+  height: 50px;
+  border-radius: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.smart-btn-active {
+  background-color: #16a34a;
+}
+
+.smart-btn-owner {
+  background-color: #2563eb;
+}
+
+.smart-btn-disabled {
+  background-color: #9ca3af;
+}
+
+.smart-btn-text {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+</style>

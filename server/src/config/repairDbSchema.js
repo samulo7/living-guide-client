@@ -92,50 +92,90 @@ async function ensureJobsTable() {
       is_remote TINYINT(1) NOT NULL DEFAULT 0,
       tags VARCHAR(255) NOT NULL DEFAULT '',
       description TEXT NOT NULL,
+      contact VARCHAR(120) NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      boss_id INT NOT NULL DEFAULT 0,
+      location_json TEXT NULL,
+      images_json TEXT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
       KEY idx_jobs_city_id (city_id),
+      KEY idx_jobs_status (status),
+      KEY idx_jobs_boss_id (boss_id),
       KEY idx_jobs_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `)
 }
 
 async function seedJobs() {
+  const [userRows] = await pool.query(`
+    SELECT id
+    FROM users
+    ORDER BY id ASC
+    LIMIT 1
+  `)
+  if (!Array.isArray(userRows) || userRows.length == 0) {
+    return
+  }
+  const ownerId = Number(userRows[0]?.id || 0)
+  if (!Number.isInteger(ownerId) || ownerId <= 0) {
+    return
+  }
+
   await pool.query(`
-    INSERT INTO jobs (city_id, title, salary, company, is_remote, tags, description, created_at)
+    INSERT INTO jobs (
+      city_id, title, salary, company, is_remote, tags, description,
+      contact, status, boss_id, location_json, images_json, created_at
+    )
     SELECT
       (SELECT id FROM cities ORDER BY id ASC LIMIT 1),
-      '网吧夜班网管',
+      '夜班网管（包吃住）',
       '¥180/天',
-      '鹤岗兴安电竞馆',
+      '兴安电竞馆',
       0,
       '包吃住、夜班补贴、可留宿',
       '负责夜间值班与基础设备维护，工作节奏平稳，适合短住期间补贴生活费。',
+      '微信: hr_hegang_night',
+      'active',
+      ?,
+      '{"name":"兴安商圈","address":"黑龙江省鹤岗市兴安区兴安路","city":"鹤岗","street":"兴安路","business_area":"兴安商圈","latitude":47.33542,"longitude":130.29377}',
+      '["/static/images/1.jpg","/static/images/2.jpg"]',
       DATE_SUB(NOW(), INTERVAL 2 DAY)
     WHERE NOT EXISTS (
-      SELECT 1 FROM jobs WHERE title = '网吧夜班网管' AND company = '鹤岗兴安电竞馆'
+      SELECT 1 FROM jobs WHERE title = '夜班网管（包吃住）' AND company = '兴安电竞馆'
     )
-  `)
+  `, [ownerId])
 
   await pool.query(`
-    INSERT INTO jobs (city_id, title, salary, company, is_remote, tags, description, created_at)
+    INSERT INTO jobs (
+      city_id, title, salary, company, is_remote, tags, description,
+      contact, status, boss_id, location_json, images_json, created_at
+    )
     SELECT
       NULL,
-      '短视频切片',
+      '短视频剪辑（可远程）',
       '¥5000-8000/月',
-      '云剪辑工作室',
+      '云剪工作室',
       1,
-      '可远程、按条计费、弹性排期',
-      '负责口播与访谈内容切片，提供素材包和模板，适合自由职业者远程协作。',
+      '可远程、按条计费、弹性排班',
+      '负责口播与采访内容切片，提供素材包和模板，适合自由职业者远程协作。',
+      '微信: clip_job_007',
+      'active',
+      ?,
+      '{"name":"线上岗位","address":"远程线上协作","city":"线上","street":"线上","business_area":"远程协作","latitude":null,"longitude":null}',
+      '["/static/images/3.jpg","/static/images/4.jpg"]',
       DATE_SUB(NOW(), INTERVAL 1 DAY)
     WHERE NOT EXISTS (
-      SELECT 1 FROM jobs WHERE title = '短视频切片' AND company = '云剪辑工作室'
+      SELECT 1 FROM jobs WHERE title = '短视频剪辑（可远程）' AND company = '云剪工作室'
     )
-  `)
+  `, [ownerId])
 
   await pool.query(`
-    INSERT INTO jobs (city_id, title, salary, company, is_remote, tags, description, created_at)
+    INSERT INTO jobs (
+      city_id, title, salary, company, is_remote, tags, description,
+      contact, status, boss_id, location_json, images_json, created_at
+    )
     SELECT
       (SELECT id FROM cities ORDER BY id ASC LIMIT 1),
       '民宿前台义工',
@@ -144,11 +184,16 @@ async function seedJobs() {
       0,
       '包三餐、包住宿、可转正',
       '负责接待住客与基础运营支持，工作时段固定，适合希望降低旅居成本的人群。',
+      '电话: 13900001234',
+      'active',
+      ?,
+      '{"name":"东山步行街","address":"黑龙江省鹤岗市东山区东山街","city":"鹤岗","street":"东山街","business_area":"东山步行街","latitude":47.3442,"longitude":130.2976}',
+      '["/static/images/2.jpg","/static/images/1.jpg"]',
       NOW()
     WHERE NOT EXISTS (
       SELECT 1 FROM jobs WHERE title = '民宿前台义工' AND company = '山野慢居民宿'
     )
-  `)
+  `, [ownerId])
 }
 
 async function repairJobsTable() {
@@ -165,15 +210,35 @@ async function repairJobsTable() {
   await ensureColumn('jobs', 'is_remote', 'ALTER TABLE jobs ADD COLUMN is_remote TINYINT(1) NOT NULL DEFAULT 0 AFTER company')
   await ensureColumn('jobs', 'tags', "ALTER TABLE jobs ADD COLUMN tags VARCHAR(255) NOT NULL DEFAULT '' AFTER is_remote")
   await ensureColumn('jobs', 'description', "ALTER TABLE jobs ADD COLUMN description TEXT NOT NULL AFTER tags")
+  await ensureColumn('jobs', 'contact', "ALTER TABLE jobs ADD COLUMN contact VARCHAR(120) NOT NULL DEFAULT '' AFTER description")
+  await ensureColumn('jobs', 'status', "ALTER TABLE jobs ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active' AFTER contact")
+  await ensureColumn('jobs', 'boss_id', 'ALTER TABLE jobs ADD COLUMN boss_id INT NOT NULL DEFAULT 0 AFTER status')
+  await ensureColumn('jobs', 'location_json', 'ALTER TABLE jobs ADD COLUMN location_json TEXT NULL AFTER boss_id')
+  await ensureColumn('jobs', 'images_json', 'ALTER TABLE jobs ADD COLUMN images_json TEXT NULL AFTER location_json')
   await ensureColumn(
     'jobs',
     'updated_at',
     'ALTER TABLE jobs ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
   )
 
+  await pool.query("UPDATE jobs SET status = 'active' WHERE status IS NULL OR status = ''")
+  await pool.query("UPDATE jobs SET contact = '私信联系' WHERE contact IS NULL OR contact = ''")
+
+  const [ownerRows] = await pool.query(`
+    SELECT id
+    FROM users
+    ORDER BY id ASC
+    LIMIT 1
+  `)
+  if (Array.isArray(ownerRows) && ownerRows.length > 0) {
+    const ownerId = Number(ownerRows[0]?.id || 0)
+    if (Number.isInteger(ownerId) && ownerId > 0) {
+      await pool.query('UPDATE jobs SET boss_id = ? WHERE boss_id IS NULL OR boss_id = 0', [ownerId])
+    }
+  }
+
   await seedJobs()
 }
-
 async function ensureCompanionsTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS companions (
@@ -245,7 +310,6 @@ async function seedCompanions() {
       hours_ago: 24
     }
   ]
-
   for (let i = 0; i < seedRows.length; i++) {
     const item = seedRows[i]
     await pool.query(

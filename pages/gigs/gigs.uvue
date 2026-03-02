@@ -20,7 +20,7 @@
       </view>
 
       <view v-else>
-        <view class="job-card" v-for="job in jobList" :key="job.id">
+        <view class="job-card" v-for="job in jobList" :key="job.id" @click="goJobDetail(job.id)">
           <view class="job-head">
             <text class="job-title">{{ job.title }}</text>
             <text class="job-salary">{{ salaryText(job.salary) }}</text>
@@ -45,7 +45,7 @@
 
           <text class="job-desc">{{ job.description }}</text>
           <view class="action-row">
-            <text class="contact-btn" @click="contactBoss(job)">💬 联系老板</text>
+            <text class="contact-btn" @click.stop="contactBoss(job)">💬 联系老板</text>
           </view>
         </view>
       </view>
@@ -154,6 +154,14 @@ function cityText(value: string): string {
 function contactBoss(job: JobItem) {
   void job
   uni.showToast({ title: '模拟：正在为您拉起老板微信...', icon: 'none' })
+}
+
+function goJobDetail(id: string) {
+  const targetId = String(id || '').trim()
+  if (targetId == '') {
+    return
+  }
+  uni.navigateTo({ url: '/pages/money/detail?id=' + encodeURIComponent(targetId) })
 }
 
 async function fetchJobs(): Promise<JobItem[]> {

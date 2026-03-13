@@ -19,3 +19,7 @@ __pycache__/
 # 你的 Excel 源文件 (建议上传，作为数据源)
 # 但如果你不想公开原始数据，可以把下面这行取消注释
 # raw_data/
+
+# Local requirement docs
+requirements_*.md
+pages/index/requirements_*.md

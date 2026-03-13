@@ -21,5 +21,10 @@ __pycache__/
 # raw_data/
 
 # Local requirement docs
+PROJECT_BRIEF.md
+Sprint_*.md
+V*.md
+v*.md
+fix_*_ui.md
 requirements_*.md
 pages/index/requirements_*.md

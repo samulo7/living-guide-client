@@ -3,108 +3,152 @@
     <view class="bg-orb bg-orb-a"></view>
     <view class="bg-orb bg-orb-b"></view>
     <scroll-view class="form-scroll" direction="vertical">
-      <view class="form-card">
-        <text class="title">{{ '发布搭子' }}</text>
-
-        <text class="label">{{ '标题' }} <text class="required-star">*</text></text>
-        <input
-          class="input"
-          :class="{ 'field-invalid': shouldShowError(titleError) }"
-          v-model="formTitle"
-          maxlength="160"
-          :placeholder="'例如：周末一起看房/吃饭'"
-        />
-        <text class="error-text" v-if="shouldShowError(titleError)">{{ titleError }}</text>
-
-        <text class="label">{{ '内容' }} <text class="required-star">*</text></text>
-        <textarea
-          class="textarea"
-          :class="{ 'field-invalid': shouldShowError(contentError) }"
-          v-model="formContent"
-          maxlength="2000"
-          :placeholder="'写清时间、地点、你希望的搭子类型'"
-        />
-        <text class="error-text" v-if="shouldShowError(contentError)">{{ contentError }}</text>
-
-        <text class="label">{{ '标签（可多选）' }}</text>
-        <view class="tag-selector">
-          <view
-            v-for="tag in TAG_OPTIONS"
-            :key="tag"
-            class="tag-option"
-            :class="{ 'tag-option-active': isTagSelected(tag) }"
-            @click="toggleTag(tag)"
-          >
-            <text class="tag-option-text">{{ tag }}</text>
+      <view class="form-shell">
+        <view class="form-card">
+          <view class="hero">
+            <text class="title">{{ '发布搭子' }}</text>
+            <text class="subtitle">{{ '补充关键信息，发布后更容易被同城用户看到' }}</text>
           </view>
-        </view>
-        <text class="error-text" v-if="shouldShowError(tagsError)">{{ tagsError }}</text>
 
-        <text class="label">{{ '位置（必选）' }} <text class="required-star">*</text></text>
-        <view class="location-card" :class="{ 'field-invalid': shouldShowError(locationError) }" @click="pickLocation">
-          <text class="location-main">{{ locationSummary }}</text>
-          <text class="location-sub">{{ locationAddressText }}</text>
-        </view>
-        <text class="error-text" v-if="shouldShowError(locationError)">{{ locationError }}</text>
-        <text class="location-fallback" @click="enableManualLocation">{{ '地图不可用？点此手动填写位置' }}</text>
-        <view class="manual-location" v-if="manualLocationEnabled">
-          <input
-            class="input"
-            v-model="manualLocationCity"
-            maxlength="40"
-            :placeholder="'城市（如：沈阳）'"
-          />
-          <input
-            class="input manual-location-gap"
-            v-model="manualLocationName"
-            maxlength="80"
-            :placeholder="'地点名称（如：皇姑万象汇）'"
-          />
-          <input
-            class="input manual-location-gap"
-            v-model="manualLocationAddress"
-            maxlength="160"
-            :placeholder="'详细地址（可选）'"
-          />
-          <view class="manual-location-save" @click="saveManualLocation">
-            <text class="manual-location-save-text">{{ '保存手动位置' }}</text>
-          </view>
-        </view>
-
-        <view class="label-row">
-          <text class="label">{{ '图片（可选，最多 3 张）' }}</text>
-          <text class="label-counter">{{ imageCountText }}</text>
-        </view>
-        <view class="image-grid">
-          <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
-            <text class="image-add-plus">+</text>
-            <text class="image-add-text">{{ '添加' }}</text>
-          </view>
-          <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
-            <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
-            <view class="image-remove" @click="removeImage(index)">
-              <text class="image-remove-text">x</text>
+          <view class="section-block">
+            <view class="section-head">
+              <text class="section-title">{{ '基础信息' }}</text>
+              <text class="section-desc">{{ '先说明活动主题和预期' }}</text>
             </view>
+
+            <view class="label-row">
+              <text class="label">{{ '标题' }} <text class="required-star">*</text></text>
+              <text class="label-counter">{{ titleCountText }}</text>
+            </view>
+            <input
+              class="input"
+              :class="{ 'field-invalid': shouldShowError(titleError) }"
+              v-model="formTitle"
+              maxlength="160"
+              :placeholder="'例如：周末一起看房 / 吃饭'"
+            />
+            <text class="error-text" v-if="shouldShowError(titleError)">{{ titleError }}</text>
+
+            <view class="label-row">
+              <text class="label">{{ '内容' }} <text class="required-star">*</text></text>
+              <text class="label-counter">{{ contentCountText }}</text>
+            </view>
+            <textarea
+              class="textarea"
+              :class="{ 'field-invalid': shouldShowError(contentError) }"
+              v-model="formContent"
+              maxlength="2000"
+              :placeholder="'写清时间、地点、希望的搭子类型和注意事项'"
+            />
+            <text class="error-text" v-if="shouldShowError(contentError)">{{ contentError }}</text>
           </view>
+
+          <view class="section-block">
+            <view class="section-head">
+              <text class="section-title">{{ '活动信息' }}</text>
+              <text class="section-desc">{{ '完善标签、位置和图片，提高匹配效率' }}</text>
+            </view>
+
+            <view class="label-row">
+              <text class="label">{{ '标签（可多选）' }} <text class="required-star">*</text></text>
+              <text class="label-counter">{{ tagCountText }}</text>
+            </view>
+            <view class="tag-selector">
+              <view
+                v-for="tag in TAG_OPTIONS"
+                :key="tag"
+                class="tag-option"
+                :class="{ 'tag-option-active': isTagSelected(tag) }"
+                @click="toggleTag(tag)"
+              >
+                <text class="tag-option-text">{{ tag }}</text>
+              </view>
+            </view>
+            <text class="helper-text">{{ '至少选择 1 个标签，最多 8 个' }}</text>
+            <text class="error-text" v-if="shouldShowError(tagsError)">{{ tagsError }}</text>
+
+            <text class="label">{{ '位置（必选）' }} <text class="required-star">*</text></text>
+            <view class="location-card" :class="{ 'field-invalid': shouldShowError(locationError) }" @click="pickLocation">
+              <view class="location-main-row">
+                <text class="location-main">{{ locationSummary }}</text>
+                <text class="location-status" :class="{ 'location-status-active': hasSelectedLocation }">{{ locationStatusText }}</text>
+              </view>
+              <text class="location-sub">{{ locationAddressText }}</text>
+            </view>
+            <text class="error-text" v-if="shouldShowError(locationError)">{{ locationError }}</text>
+            <view class="manual-location-toggle" @click="enableManualLocation">
+              <text class="manual-location-toggle-text">{{ manualLocationToggleText }}</text>
+            </view>
+            <view class="manual-location" v-if="manualLocationEnabled">
+              <input
+                class="input"
+                v-model="manualLocationCity"
+                maxlength="40"
+                :placeholder="'城市（如：沈阳）'"
+              />
+              <input
+                class="input manual-location-gap"
+                v-model="manualLocationName"
+                maxlength="80"
+                :placeholder="'地点名称（如：皇姑万象汇）'"
+              />
+              <input
+                class="input manual-location-gap"
+                v-model="manualLocationAddress"
+                maxlength="160"
+                :placeholder="'详细地址（选填）'"
+              />
+              <view class="manual-location-save" @click="saveManualLocation">
+                <text class="manual-location-save-text">{{ '保存手动位置' }}</text>
+              </view>
+            </view>
+
+            <view class="label-row">
+              <text class="label">{{ '图片（可选，最多 3 张）' }}</text>
+              <text class="label-counter">{{ imageCountText }}</text>
+            </view>
+            <view class="image-grid">
+              <view class="image-cell image-add" v-if="imagePaths.length < 3" @click="chooseImages">
+                <text class="image-add-plus">+</text>
+                <text class="image-add-text">{{ '添加' }}</text>
+              </view>
+              <view class="image-cell" v-for="(img, index) in imagePaths" :key="img + '-' + String(index)">
+                <image class="image-preview" :src="imageUrl(img)" mode="aspectFill"></image>
+                <view class="image-remove" @click="removeImage(index)">
+                  <text class="image-remove-text">x</text>
+                </view>
+              </view>
+            </view>
+            <text class="helper-text">{{ imageHelperText }}</text>
+          </view>
+
+          <view class="section-block section-last">
+            <view class="section-head">
+              <text class="section-title">{{ '联系与发布' }}</text>
+              <text class="section-desc">{{ '联系方式选填，方便感兴趣的人联系你' }}</text>
+            </view>
+
+            <text class="label">{{ '联系方式（选填）' }}</text>
+            <input
+              class="input"
+              v-model="formContact"
+              maxlength="120"
+              :placeholder="'例如：微信号 / 电话 / Telegram'"
+            />
+            <text class="safety-inline-tip">{{ '安全提示：线下见面请优先选择公共场所' }}</text>
+          </view>
+
+          <view class="form-bottom-spacer"></view>
         </view>
-        <text class="helper-text">{{ imageHelperText }}</text>
-
-        <text class="label">{{ '联系方式（选填）' }}</text>
-        <input
-          class="input"
-          v-model="formContact"
-          maxlength="120"
-          :placeholder="'例如：微信号 / 电话 / Telegram'"
-        />
-
-        <view class="form-bottom-spacer"></view>
       </view>
     </scroll-view>
 
     <view class="submit-bar">
-      <text class="safety-tip">{{ '温馨提示：线下见面请选择公共场所，谨防诈骗' }}</text>
-      <view class="submit-btn" :class="{ 'submit-btn-disabled': !canSubmit }" @click="onSubmit">
-        <text class="submit-btn-text">{{ submitText }}</text>
+      <view class="submit-inner">
+        <text class="submit-state">{{ submitHintText }}</text>
+        <view class="submit-btn" :class="{ 'submit-btn-disabled': !canSubmit }" @click="onSubmit">
+          <text class="submit-btn-text">{{ submitText }}</text>
+        </view>
       </view>
     </view>
   </view>
@@ -172,45 +216,66 @@ const normalizedTags = computed((): string[] => {
 const locationSummary = computed((): string => {
   const location = selectedLocation.value
   if (location == null) {
-    return '点击选择位置'
+    return '点击选择活动位置'
   }
   const name = location.name.trim()
   if (name != '') {
-    return '位置：' + name
+    return name
   }
   const city = location.city.trim()
-  return city != '' ? ('位置：' + city) : '位置：未命名'
+  if (city != '') {
+    return city
+  }
+  return '已选择位置'
 })
 
 const locationAddressText = computed((): string => {
   const location = selectedLocation.value
   if (location == null) {
-    return '将调用高德地图选点'
+    return '将调用地图选点，也可切换手动填写'
   }
   const address = location.address.trim()
   if (address != '') {
     return address
   }
   const city = location.city.trim()
-  return city != '' ? city : '未提供详细地址'
+  return city != '' ? city : '可继续补充详细地址'
+})
+
+const hasSelectedLocation = computed((): boolean => {
+  return resolveLocationForSubmit() != null
+})
+
+const locationStatusText = computed((): string => {
+  return hasSelectedLocation.value ? '已填写' : '待填写'
+})
+
+const manualLocationToggleText = computed((): string => {
+  if (manualLocationEnabled.value) {
+    return '已切换手动填写，可直接编辑下方位置'
+  }
+  return '地图不可用？改为手动填写位置'
 })
 
 const submitText = computed((): string => {
   if (uploadingImages.value) {
-    return '图片上传中...'
+    return '图片上传中，请稍候'
   }
   if (submitting.value) {
-    return '发布中...'
+    return '正在发布，请稍候'
   }
-  return '立即发布'
+  if (!canSubmit.value) {
+    return '完成必填后发布'
+  }
+  return '发布搭子'
 })
 
 const titleError = computed((): string => {
-  return formTitle.value.trim().length >= 2 ? '' : '标题至少 2 个字'
+  return formTitle.value.trim().length >= 2 ? '' : '请填写至少 2 个字的标题'
 })
 
 const contentError = computed((): string => {
-  return formContent.value.trim().length >= 2 ? '' : '内容至少 2 个字'
+  return formContent.value.trim().length >= 2 ? '' : '请填写至少 2 个字的内容'
 })
 
 const tagsError = computed((): string => {
@@ -218,7 +283,7 @@ const tagsError = computed((): string => {
 })
 
 const locationError = computed((): string => {
-  return resolveLocationForSubmit() != null ? '' : '请选择活动位置'
+  return resolveLocationForSubmit() != null ? '' : '请填写活动位置'
 })
 
 const canSubmit = computed((): boolean => {
@@ -228,15 +293,49 @@ const canSubmit = computed((): boolean => {
   return titleError.value == '' && contentError.value == '' && tagsError.value == '' && locationError.value == ''
 })
 
+const titleCountText = computed((): string => {
+  return String(formTitle.value.length) + '/160'
+})
+
+const contentCountText = computed((): string => {
+  return String(formContent.value.length) + '/2000'
+})
+
+const tagCountText = computed((): string => {
+  return String(normalizedTags.value.length) + '/8'
+})
+
 const imageCountText = computed((): string => {
   return String(imagePaths.value.length) + '/3'
 })
 
 const imageHelperText = computed((): string => {
   if (uploadingImages.value) {
-    return '图片上传中...'
+    return '图片上传中，请稍候'
   }
   return imagePaths.value.length > 0 ? '第一张将作为封面图展示' : '可选上传，最多 3 张'
+})
+
+const submitHintText = computed((): string => {
+  if (uploadingImages.value) {
+    return '图片上传中，上传完成后可发布'
+  }
+  if (submitting.value) {
+    return '正在提交，请稍候'
+  }
+  if (canSubmit.value) {
+    return '信息完整，可直接发布'
+  }
+  if (titleError.value != '') {
+    return titleError.value
+  }
+  if (contentError.value != '') {
+    return contentError.value
+  }
+  if (tagsError.value != '') {
+    return tagsError.value
+  }
+  return locationError.value != '' ? locationError.value : '请完善必填信息后发布'
 })
 
 function hasToken(): boolean {
@@ -502,10 +601,9 @@ function saveManualLocation(): boolean {
     return false
   }
   selectedLocation.value = location
-  uni.showToast({ title: '已保存手动位置', icon: 'none' })
+  uni.showToast({ title: '手动位置已保存', icon: 'none' })
   return true
 }
-
 function shouldShowError(message: string): boolean {
   return attemptedSubmit.value && message != ''
 }
@@ -592,7 +690,7 @@ function pickLocation() {
     const amapConfig = getWebAmapConfig()
     console.error('[social-publish] Map key not configured', amapConfig)
     enableManualLocation()
-    uni.showToast({ title: '地图配置缺失，请先配置高德 Key', icon: 'none' })
+    uni.showToast({ title: '地图暂不可用，已切换手动填写', icon: 'none' })
     return
   }
 
@@ -610,35 +708,20 @@ function pickLocation() {
           return
         }
         console.error('[social-publish] chooseLocation failed:', error)
-        if (isMapProviderMissingError(error)) {
+        if (isMapProviderMissingError(error) || isMapPluginMissingError(error) || isMapServiceSystemError(error)) {
           enableManualLocation()
-          uni.showToast({ title: '地图配置缺失，请手动填写位置', icon: 'none' })
+          uni.showToast({ title: '地图服务异常，已切换手动填写', icon: 'none' })
           return
         }
-        if (isMapPluginMissingError(error)) {
-          enableManualLocation()
-          uni.showToast({ title: '地图插件缺失，请手动填写位置', icon: 'none' })
-          return
-        }
-        if (isMapServiceSystemError(error)) {
-          const detail = mapErrorText(error).trim()
-          enableManualLocation()
-          uni.showToast({
-            title: detail != '' ? '地图服务异常：' + detail.slice(0, 18) : '地图服务异常（POI失败），请手动填写位置',
-            icon: 'none'
-          })
-          return
-        }
-        uni.showToast({ title: '定位失败，请稍后重试', icon: 'none' })
+        uni.showToast({ title: '定位失败，请重试或手动填写', icon: 'none' })
       }
     })
   } catch (error) {
     console.error('[social-publish] chooseLocation crashed:', error)
     enableManualLocation()
-    uni.showToast({ title: '地图服务异常，请手动填写位置', icon: 'none' })
+    uni.showToast({ title: '地图服务异常，已切换手动填写', icon: 'none' })
   }
 }
-
 function removeImage(index: number) {
   if (submitting.value || uploadingImages.value) {
     return
@@ -823,38 +906,49 @@ async function onSubmit() {
 .bg-orb {
   position: absolute;
   border-radius: 999px;
-  opacity: 0.4;
+  opacity: 0.36;
   filter: blur(4px);
+  pointer-events: none;
 }
 
 .bg-orb-a {
   width: 220px;
   height: 220px;
-  top: -70px;
+  top: -72px;
   right: -46px;
-  background-color: #d2f2dc;
+  background-color: #d6f2df;
 }
 
 .bg-orb-b {
   width: 180px;
   height: 180px;
-  bottom: 100px;
-  left: -60px;
-  background-color: #dce8ff;
+  bottom: 110px;
+  left: -62px;
+  background-color: #dfe9ff;
 }
 
 .form-scroll {
   height: 100%;
-  padding: 18px 14px 0;
+  padding: 14px 12px 0;
+}
+
+.form-shell {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 .form-card {
   position: relative;
   background-color: #ffffff;
   border-radius: 20px;
-  padding: 18px 16px;
-  border: 1px solid #e7ece6;
-  box-shadow: 0 14px 32px rgba(17, 24, 39, 0.08);
+  padding: 16px 14px;
+  border: 1px solid #e6ece6;
+  box-shadow: 0 14px 30px rgba(17, 24, 39, 0.08);
+}
+
+.hero {
+  margin-bottom: 6px;
 }
 
 .title {
@@ -864,25 +958,60 @@ async function onSubmit() {
   letter-spacing: 0.5px;
 }
 
+.subtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #62706f;
+}
+
+.section-block {
+  margin-top: 14px;
+  border: 1px solid #e6ecef;
+  border-radius: 16px;
+  background-color: #fbfdfb;
+  padding: 12px;
+}
+
+.section-last {
+  margin-bottom: 0;
+}
+
+.section-head {
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: 15px;
+  color: #17212b;
+  font-weight: 800;
+}
+
+.section-desc {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 17px;
+  color: #687681;
+}
+
 .label {
-  margin-top: 16px;
-  margin-bottom: 7px;
   font-size: 13px;
   color: #526061;
   font-weight: 700;
 }
 
 .label-row {
-  margin-top: 16px;
+  margin-top: 12px;
   margin-bottom: 7px;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
 }
 
-.label-row .label {
-  margin-top: 0;
-  margin-bottom: 0;
+.label-counter {
+  font-size: 12px;
+  color: #5a6672;
+  font-weight: 700;
 }
 
 .required-star {
@@ -891,16 +1020,10 @@ async function onSubmit() {
   font-weight: 900;
 }
 
-.label-counter {
-  font-size: 12px;
-  color: #526061;
-  font-weight: 700;
-}
-
 .input {
   height: 44px;
   border-radius: 12px;
-  border: 1px solid #d5dfe4;
+  border: 1px solid #d4dfe3;
   background-color: #f7faf8;
   padding: 0 12px;
   font-size: 14px;
@@ -910,7 +1033,7 @@ async function onSubmit() {
 .textarea {
   min-height: 128px;
   border-radius: 12px;
-  border: 1px solid #d5dfe4;
+  border: 1px solid #d4dfe3;
   background-color: #f7faf8;
   padding: 10px 12px;
   font-size: 14px;
@@ -919,12 +1042,20 @@ async function onSubmit() {
 
 .field-invalid {
   border-color: #dc2626;
+  background-color: #fff7f7;
 }
 
 .error-text {
   margin-top: 6px;
   font-size: 12px;
   color: #dc2626;
+}
+
+.helper-text {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 17px;
+  color: #70808f;
 }
 
 .tag-selector {
@@ -934,11 +1065,14 @@ async function onSubmit() {
 
 .tag-option {
   margin-right: 8px;
-  margin-bottom: 9px;
+  margin-bottom: 8px;
+  min-height: 34px;
   border-radius: 999px;
   border: 1px solid #ccd6de;
   background-color: #f7faf8;
-  padding: 6px 13px;
+  padding: 7px 13px;
+  align-items: center;
+  justify-content: center;
 }
 
 .tag-option-active {
@@ -957,29 +1091,67 @@ async function onSubmit() {
 }
 
 .location-card {
+  margin-top: 6px;
   border-radius: 14px;
   border: 1px solid #d5e2d8;
   background-color: #f6fbf7;
   padding: 11px 12px;
 }
 
+.location-main-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .location-main {
+  flex: 1;
   font-size: 14px;
+  line-height: 20px;
   color: #0f172a;
+  font-weight: 700;
+  padding-right: 8px;
+}
+
+.location-status {
+  border-radius: 999px;
+  border: 1px solid #cfd9e3;
+  background-color: #f4f7fb;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: #5d6c79;
   font-weight: 700;
 }
 
+.location-status-active {
+  border-color: #1f8e4f;
+  background-color: #eaf8ef;
+  color: #145c32;
+}
+
 .location-sub {
-  margin-top: 4px;
+  margin-top: 5px;
   font-size: 12px;
+  line-height: 17px;
   color: #66727c;
 }
 
-.location-fallback {
+.manual-location-toggle {
   margin-top: 8px;
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid #c3d2e7;
+  background-color: #f4f8ff;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+}
+
+.manual-location-toggle-text {
   font-size: 12px;
-  color: #3f6fc8;
-  text-decoration: underline;
+  line-height: 17px;
+  color: #345a94;
+  font-weight: 700;
 }
 
 .manual-location {
@@ -1010,6 +1182,7 @@ async function onSubmit() {
 }
 
 .image-grid {
+  margin-top: 2px;
   flex-direction: row;
   flex-wrap: wrap;
 }
@@ -1067,14 +1240,15 @@ async function onSubmit() {
   line-height: 14px;
 }
 
-.helper-text {
-  margin-top: 2px;
-  font-size: 12px;
-  color: #728190;
+.safety-inline-tip {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #657369;
 }
 
 .form-bottom-spacer {
-  height: 112px;
+  height: 124px;
 }
 
 .submit-bar {
@@ -1082,18 +1256,24 @@ async function onSubmit() {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 10px 14px calc(16px + constant(safe-area-inset-bottom));
-  padding: 10px 14px calc(16px + env(safe-area-inset-bottom));
+  padding: 10px 12px calc(16px + constant(safe-area-inset-bottom));
+  padding: 10px 12px calc(16px + env(safe-area-inset-bottom));
   background-color: rgba(242, 245, 241, 0.96);
   border-top-width: 1px;
   border-top-style: solid;
   border-top-color: #dbe3df;
 }
 
-.safety-tip {
+.submit-inner {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.submit-state {
   margin-bottom: 8px;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 17px;
   color: #5f6e66;
   text-align: center;
 }
@@ -1120,5 +1300,30 @@ async function onSubmit() {
   font-weight: 900;
   letter-spacing: 1px;
 }
-</style>
 
+/* #ifdef H5 */
+@media (min-width: 1024px) {
+  .form-scroll {
+    padding: 22px 24px 0;
+  }
+
+  .form-card {
+    border-radius: 24px;
+    padding: 22px;
+  }
+
+  .section-block {
+    padding: 14px;
+  }
+
+  .form-bottom-spacer {
+    height: 134px;
+  }
+
+  .submit-bar {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+/* #endif */
+</style>
